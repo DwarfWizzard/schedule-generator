@@ -1,0 +1,77 @@
+package repository
+
+import (
+	"context"
+	"errors"
+
+	eduplans "schedule-generator/internal/domain/edu_plans"
+	"schedule-generator/internal/infrastructure/db"
+	"schedule-generator/internal/infrastructure/db/postgres/schema"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// SaveEduPlan
+func (r *Repository) SaveEduPlan(ctx context.Context, d *eduplans.EduPlan) error {
+	s := schema.EduPlanToSchema(d)
+	err := r.client.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Save(s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return db.ErrorUniqueViolation
+		}
+
+		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+			return db.ErrorAssociationViolation
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// GetEduPlan
+func (r *Repository) GetEduPlan(ctx context.Context, id uuid.UUID) (*eduplans.EduPlan, error) {
+	var s schema.EduPlan
+	err := r.client.WithContext(ctx).Where("id = ?", id.String()).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	return schema.EduPlanFromSchema(&s), nil
+}
+
+// ListEduPlan
+func (r *Repository) ListEduPlan(ctx context.Context) ([]eduplans.EduPlan, error) {
+	var list []schema.EduPlan
+	err := r.client.WithContext(ctx).Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]eduplans.EduPlan, len(list))
+	for i, v := range list {
+		result[i] = *schema.EduPlanFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// DeleteEduPlan
+func (r *Repository) DeleteEduPlan(ctx context.Context, id uuid.UUID) error {
+	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.EduPlan{}).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

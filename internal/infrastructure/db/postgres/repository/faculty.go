@@ -1,0 +1,73 @@
+package repository
+
+import (
+	"context"
+	"errors"
+
+	"schedule-generator/internal/domain/faculties"
+	"schedule-generator/internal/infrastructure/db"
+	"schedule-generator/internal/infrastructure/db/postgres/schema"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// SaveFaculty
+func (r *Repository) SaveFaculty(ctx context.Context, d *faculties.Faculty) error {
+	s := schema.FacultyToSchema(d)
+	err := r.client.WithContext(ctx).Save(s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return db.ErrorUniqueViolation
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// GetFaculty
+func (r *Repository) GetFaculty(ctx context.Context, id uuid.UUID) (*faculties.Faculty, error) {
+	var s schema.Faculty
+	err := r.client.WithContext(ctx).Where("id = ?", id.String()).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	return schema.FacultyFromSchema(&s), nil
+}
+
+// ListFaculty
+func (r *Repository) ListFaculty(ctx context.Context) ([]faculties.Faculty, error) {
+	var list []schema.Faculty
+	err := r.client.WithContext(ctx).Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]faculties.Faculty, len(list))
+	for i, v := range list {
+		result[i] = *schema.FacultyFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// DeleteFaculty
+func (r *Repository) DeleteFaculty(ctx context.Context, id uuid.UUID) error {
+	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.Faculty{}).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

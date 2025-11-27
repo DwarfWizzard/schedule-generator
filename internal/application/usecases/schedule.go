@@ -1,0 +1,403 @@
+package usecases
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"strconv"
+	"time"
+
+	"schedule-generator/internal/application/acl/exporter"
+	edugroups "schedule-generator/internal/domain/edu_groups"
+	"schedule-generator/internal/domain/schedules"
+	"schedule-generator/internal/infrastructure/db"
+	"schedule-generator/pkg/execerror"
+
+	"github.com/google/uuid"
+)
+
+type ScheduleUsecaseRepo interface {
+	schedules.Repository
+	edugroups.Repository
+	GetScheduleByEduGroupIDAndSemester(ctx context.Context, eduGroupID uuid.UUID, semester int) (*schedules.Schedule, error)
+
+	db.TransactionalRepository
+}
+
+type ScheduleUsecase struct {
+	repo     ScheduleUsecaseRepo
+	exporter exporter.Factory
+	logger   *slog.Logger
+}
+
+func NewScheduleUsecase(repo ScheduleUsecaseRepo, exporter exporter.Factory, logger *slog.Logger) *ScheduleUsecase {
+	return &ScheduleUsecase{
+		repo:     repo,
+		exporter: exporter,
+		logger:   logger,
+	}
+}
+
+type ScheduleDTO struct {
+	ID         uuid.UUID
+	EduGroupID uuid.UUID
+	Type       schedules.ScheduleType
+	StartDate  *time.Time
+	EndDate    *time.Time
+	Items      []schedules.ScheduleItem
+}
+
+type CreateScheduleInput struct {
+	EduGroupID uuid.UUID
+	Semester   int
+	StartDate  *time.Time
+	EndDate    *time.Time
+}
+
+type CreateScheduleOutput struct {
+	ScheduleDTO
+}
+
+// CreateSchedule
+func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateScheduleInput) (*CreateScheduleOutput, error) {
+	logger := uc.logger.With("edu_group_id", input.EduGroupID)
+
+	if _, err := uc.repo.GetScheduleByEduGroupIDAndSemester(ctx, input.EduGroupID, input.Semester); err == nil {
+		return nil, execerror.NewExecError(execerror.TypeProcessingConflict, errors.New("schedule for group and semester already exists")).
+			AddDetails("edu_group_id", input.EduGroupID.String()).
+			AddDetails("semester", strconv.FormatInt(int64(input.Semester), 10))
+	} else if !errors.Is(err, db.ErrorNotFound) {
+		logger.Error("Check if schedule alreay exists for semeter error", "error", err, "semester", input.Semester)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if input.StartDate == nil || input.EndDate == nil {
+		return nil, execerror.NewExecError(execerror.TypeUnimpemented, errors.New("calendar schedule not implemented"))
+	}
+
+	schedule, err := schedules.NewCycledSchedule(input.EduGroupID, input.Semester, *input.StartDate, *input.EndDate)
+	if err != nil {
+		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
+	}
+
+	err = uc.repo.SaveSchedule(ctx, schedule)
+	if err != nil {
+		logger.Error("Save schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return &CreateScheduleOutput{
+		ScheduleDTO: scheduleToCycledScheduleDTO(schedule, false),
+	}, nil
+}
+
+type ListScheduleOutput = []ScheduleDTO
+
+// ListSchedule
+func (uc *ScheduleUsecase) ListSchedule(ctx context.Context) (ListScheduleOutput, error) {
+	logger := uc.logger
+
+	list, err := uc.repo.ListSchedule(ctx)
+	if err != nil {
+		logger.Error("Get list schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	result := make(ListScheduleOutput, len(list))
+	for idx, schedule := range list {
+		result[idx] = scheduleToCycledScheduleDTO(&schedule, false)
+	}
+
+	return result, nil
+}
+
+type GetScheduleOutput struct {
+	ScheduleDTO
+}
+
+// GetSchedule
+func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID) (*GetScheduleOutput, error) {
+	logger := uc.logger
+
+	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return &GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(schedule, false)}, nil
+}
+
+type AddItemToScheduleInput struct {
+	Discipline    string
+	TeacherID     uuid.UUID
+	StudentsCount int16
+	Weekday       time.Weekday
+	LessonNumber  int8
+	Subgroup      int8
+	Weektype      int8
+	LessonType    int8
+	Classroom     string
+}
+
+// AddItemToSchedule
+func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uuid.UUID, input []AddItemToScheduleInput) error {
+	logger := uc.logger.With("schedule_id", scheduleID)
+
+	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
+	if err != nil {
+		logger.Error("Start transaction error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+	defer rollback(ctx)
+
+	repo := tx.(ScheduleUsecaseRepo)
+
+	schedule, err := repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	//TODO: handle calendar schedule
+	if schedule.Type != schedules.ScheduleTypeCycled {
+		logger.Error("Schedule is not cycled")
+		return execerror.NewExecError(execerror.TypeUnimpemented, errors.New("currently supproted schedule is cycled"))
+	}
+
+	for i, item := range input {
+		err = schedule.Cycled.AddItem(
+			item.Discipline,
+			item.TeacherID,
+			item.Weekday,
+			item.StudentsCount,
+			item.LessonNumber,
+			item.Subgroup,
+			item.Weektype,
+			item.LessonType,
+			item.Classroom,
+		)
+		if err != nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, err).AddDetails("input_idx", strconv.FormatInt(int64(i), 10))
+		}
+	}
+
+	err = uc.repo.SaveSchedule(ctx, schedule)
+	if err != nil {
+		logger.Error("Save schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		logger.Error("Save updated schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+// GetListScheduleItemForSpecifiedDate
+func (uc *ScheduleUsecase) GetListScheduleItemForSpecifiedDate(ctx context.Context, scheduleID uuid.UUID, date time.Time) ([]schedules.ScheduleItem, error) {
+	logger := uc.logger.With("schedule_id", scheduleID, "date", date)
+
+	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if schedule.Type != schedules.ScheduleTypeCycled {
+		logger.Error("Schedule is not cycled")
+		return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("allowed only for cycled schedule"))
+	}
+
+	group, err := uc.repo.GetEduGroup(ctx, schedule.EduGroupID)
+	if err != nil {
+		logger.Error("Get schedule edu group error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	educationStartDate := group.GetEducationStartDateBySemester(schedule.Semester)
+
+	scheduleSvc := schedules.NewScheduleService()
+
+	items, err := scheduleSvc.ListScheduleItemByDate(schedule.Cycled, educationStartDate, date)
+	if err != nil {
+		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
+	}
+
+	return items, nil
+}
+
+// ExportSchedule
+func (uc *ScheduleUsecase) ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error {
+	logger := uc.logger.With("schedule_id", scheduleID)
+
+	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	exp, err := uc.exporter.ByFormat(format)
+	if err != nil {
+		logger.Error("Get exporter by formate error", "error", err)
+		if errors.Is(err, exporter.ErrUnknownFormat) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, err)
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = exp.Export(ctx, schedule, dst)
+	if err != nil {
+		logger.Error("Export schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+// ExportCycledScheduleAsCalendar
+func (uc *ScheduleUsecase) ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error {
+	logger := uc.logger.With("schedule_id", scheduleID)
+
+	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if schedule.Type != schedules.ScheduleTypeCycled {
+		return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule is not cycled"))
+	}
+
+	group, err := uc.repo.GetEduGroup(ctx, schedule.EduGroupID)
+	if err != nil {
+		logger.Error("Get schedule edu group error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	calendarSchedule, err := schedules.CalendarScheduleFromCycled(schedule.EduGroupID, schedule.Semester, schedule.Cycled, group.GetEducationStartDateBySemester(schedule.Semester))
+	if err != nil {
+		logger.Error("Make calendar from cycled schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInvalidInput, err)
+	}
+
+	exp, err := uc.exporter.ByFormat(format)
+	if err != nil {
+		logger.Error("Get exporter by formate error", "error", err)
+		if errors.Is(err, exporter.ErrUnknownFormat) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, err)
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = exp.Export(ctx, calendarSchedule, dst)
+	if err != nil {
+		logger.Error("Export schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+type RemoveItemFromScheduleInput struct {
+	Date         *time.Time
+	Weekday      *time.Weekday
+	LessonNumber int8
+	Subgroup     int8
+	Weektype     *int8
+}
+
+// RemoveItemsFromSchedule
+func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []RemoveItemFromScheduleInput) error {
+	logger := uc.logger.With("schedule_id", scheduleID)
+
+	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	for _, item := range input {
+		switch schedule.Type {
+		case schedules.ScheduleTypeCycled:
+			if item.Weekday == nil {
+				return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing weekday"))
+			}
+
+			if item.Weektype == nil {
+				return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing weektype"))
+			}
+
+			err := schedule.Cycled.RemoveItem(*item.Weekday, item.LessonNumber, item.Subgroup, *item.Weektype)
+			if err != nil {
+				logger.Error("Remove item error", "error", err)
+				return execerror.NewExecError(execerror.TypeInvalidInput, err)
+			}
+		case schedules.ScheduleTypeCalendar:
+			if item.Date == nil {
+				return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing date"))
+			}
+
+			err := schedule.Calendar.RemoveItem(*item.Date, item.LessonNumber, item.Subgroup)
+			if err != nil {
+				logger.Error("Remove item error", "error", err)
+				return execerror.NewExecError(execerror.TypeInvalidInput, err)
+			}
+		}
+	}
+
+	err = uc.repo.SaveSchedule(ctx, schedule)
+	if err != nil {
+		logger.Error("Save schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, withItems bool) ScheduleDTO {
+	var items []schedules.ScheduleItem
+
+	if withItems {
+		items = schedule.Cycled.ListItem()
+	}
+
+	dto := ScheduleDTO{
+		ID:         schedule.ID,
+		EduGroupID: schedule.EduGroupID,
+		Items:      items,
+	}
+
+	if schedule.Type == schedules.ScheduleTypeCycled {
+		dto.StartDate = &schedule.Cycled.StartDate
+		dto.EndDate = &schedule.Cycled.EndDate
+	}
+
+	return dto
+}

@@ -1,0 +1,140 @@
+package repository
+
+import (
+	"context"
+	"errors"
+
+	"schedule-generator/internal/domain/schedules"
+	"schedule-generator/internal/infrastructure/db"
+	"schedule-generator/internal/infrastructure/db/postgres/schema"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// SaveSchedule
+func (r *Repository) SaveSchedule(ctx context.Context, d *schedules.Schedule) error {
+	s := schema.ScheduleToSchema(d)
+	err := r.client.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Save(s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return db.ErrorUniqueViolation
+		}
+
+		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+			return db.ErrorAssociationViolation
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// GetSchedule
+func (r *Repository) GetSchedule(ctx context.Context, id uuid.UUID) (*schedules.Schedule, error) {
+	var s schema.Schedule
+	err := r.client.WithContext(ctx).Preload("Items", func(db *gorm.DB) *gorm.DB {
+		return db.Order(`
+			schedule_items.date NULLS LAST,
+			schedule_items.weektype NULLS LAST,
+			schedule_items.lesson_number,
+			schedule_items.subgroup
+		`)
+	}).Where("id = ?", id.String()).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	return schema.ScheduleFromSchema(&s), nil
+}
+
+// GetScheduleByEduGroupIDAndSemester
+func (r *Repository) GetScheduleByEduGroupIDAndSemester(ctx context.Context, eduGroupID uuid.UUID, semester int) (*schedules.Schedule, error) {
+	var s schema.Schedule
+	err := r.client.WithContext(ctx).Preload("Items", func(db *gorm.DB) *gorm.DB {
+		return db.Order(`
+			schedule_items.date NULLS LAST,
+			schedule_items.weektype NULLS LAST,
+			schedule_items.lesson_number,
+			schedule_items.subgroup
+		`)
+	}).Where("edu_group_id = ? AND semester = ?", eduGroupID.String(), semester).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	return schema.ScheduleFromSchema(&s), nil
+}
+
+// ListSchedule
+func (r *Repository) ListSchedule(ctx context.Context) ([]schedules.Schedule, error) {
+	var list []schema.Schedule
+	err := r.client.WithContext(ctx).Preload("Items", func(db *gorm.DB) *gorm.DB {
+		return db.Order(`
+			schedule_items.date NULLS LAST,
+			schedule_items.weektype NULLS LAST,
+			schedule_items.lesson_number,
+			schedule_items.subgroup
+		`)
+	}).Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]schedules.Schedule, len(list))
+	for i, v := range list {
+		result[i] = *schema.ScheduleFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// ListScheduleByEduGroup
+func (r *Repository) ListScheduleByEduGroup(ctx context.Context, groupID uuid.UUID) ([]schedules.Schedule, error) {
+	var list []schema.Schedule
+	err := r.client.WithContext(ctx).Preload("Items", func(db *gorm.DB) *gorm.DB {
+		return db.Order(`
+			schedule_items.date NULLS LAST,
+			schedule_items.weektype NULLS LAST,
+			schedule_items.lesson_number,
+			schedule_items.subgroup
+		`)
+	}).Where("edu_group_id = ?", groupID).Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]schedules.Schedule, len(list))
+	for i, v := range list {
+		result[i] = *schema.ScheduleFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// DeleteSchedule
+func (r *Repository) DeleteSchedule(ctx context.Context, id uuid.UUID) error {
+	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.Schedule{}).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
