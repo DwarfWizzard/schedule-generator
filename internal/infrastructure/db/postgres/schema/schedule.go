@@ -12,6 +12,7 @@ type ScheduleItem struct {
 	ScheduleID    uuid.UUID    `gorm:"column:schedule_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Discipline    string       `gorm:"column:discipline;not null"`
 	TeacherID     uuid.UUID    `gorm:"column:teacher_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Teacher       *Teacher     `gorm:"foreignKey:teacher_id"`
 	Weekday       time.Weekday `gorm:"column:weekday;not null;default:1"`
 	StudentsCount int16        `gorm:"column:students_count;not null;default:0"`
 	Date          *time.Time   `gorm:"column:date"`

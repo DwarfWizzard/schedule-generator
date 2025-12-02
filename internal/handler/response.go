@@ -32,7 +32,7 @@ func (rw *ResponseWrapper) Send(c echo.Context) error {
 		return nil
 	}
 
-	if rw.Response == nil {
+	if rw.Response == nil && rw.Status < 400 {
 		return c.NoContent(rw.Status)
 	}
 

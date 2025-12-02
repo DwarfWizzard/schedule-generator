@@ -43,7 +43,7 @@ type CreateEduDirectionOutput struct {
 func (uc *EduDirectionUsecase) CreateEduDirection(ctx context.Context, input CreateEduDirectionInput) (*CreateEduDirectionOutput, error) {
 	logger := uc.logger
 
-	department, err := uc.repo.GetEduDirection(ctx, input.DepartmentID)
+	department, err := uc.repo.GetDepartment(ctx, input.DepartmentID)
 	if err != nil {
 		logger.Error("Get department error", "error", err)
 		if errors.Is(err, db.ErrorNotFound) {

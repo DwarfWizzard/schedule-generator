@@ -34,12 +34,24 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		&EduDirection{},
 		&EduGroup{},
 		&Teacher{},
+		&Module{},
+		&EduPlan{},
 		&Schedule{},
 		&ScheduleItem{},
 	)
 
 	if err != nil {
 		return fmt.Errorf("make auto migration error: %w", err)
+	}
+
+	err = tx.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_cycled_schedule_item_weekday_lesson_subgroup_weektype ON schedule_items (schedule_id, weekday, lesson_number, subgroup, weektype) WHERE date IS NULL").Error
+	if err != nil {
+		return fmt.Errorf("create unique index idx_cycled_schedule_item_weekday_lesson_subgroup_weektype error: %w", err)
+	}
+
+	err = tx.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_schedule_item_lesson_subgroup_date ON schedule_items (schedule_id, lesson_number, subgroup, date) WHERE weektype IS NULL").Error
+	if err != nil {
+		return fmt.Errorf("create unique index idx_calendar_schedule_item_lesson_subgroup_date error: %w", err)
 	}
 
 	if err := tx.Commit().Error; err != nil {

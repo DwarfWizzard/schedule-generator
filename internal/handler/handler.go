@@ -60,6 +60,14 @@ func (h *Handler) InitRouter() *echo.Echo {
 		directions.DELETE("/:id", h.DeleteEduDirection)
 	}
 
+	plans := api.Group("/edu-plans")
+	{
+		plans.POST("", h.CreateEduPlan)
+		plans.GET("", h.ListEduPlan)
+		plans.GET("/:id", h.GetEduPlan)
+		plans.DELETE("/:id", h.DeleteEduPlan)
+	}
+
 	groups := api.Group("/edu-groups")
 	{
 		groups.POST("", h.CreateEduGroup)
@@ -69,24 +77,6 @@ func (h *Handler) InitRouter() *echo.Echo {
 		groups.DELETE("/:id", h.DeleteEduGroup)
 	}
 
-	plans := api.Group("/edu-plans")
-	{
-		plans.POST("", h.CreateEduPlan)
-		plans.GET("", h.ListEduPlan)
-		plans.GET("/:id", h.GetEduPlan)
-		plans.DELETE("/:id", h.DeleteEduPlan)
-	}
-
-	schedules := api.Group("/schedules")
-	{
-		schedules.POST("", h.CreateSchedule)
-		schedules.GET("", h.ListSchedule)
-		schedules.GET("/:id", h.GetSchedule)
-		schedules.GET("/:id/export", h.ExportSchedule)
-		schedules.PUT("/:id/items", h.AddScheduleItem)
-		schedules.DELETE("/:id/items", h.RemoveScheduleItem)
-	}
-
 	teachers := api.Group("/teachers")
 	{
 		teachers.POST("", h.CreateTeacher)
@@ -94,6 +84,17 @@ func (h *Handler) InitRouter() *echo.Echo {
 		teachers.GET("/:id", h.GetTeacher)
 		teachers.PUT("/:id", h.UpdateTeacher)
 		teachers.DELETE("/:id", h.DeleteTeacher)
+	}
+
+	schedules := api.Group("/schedules")
+	{
+		schedules.POST("", h.CreateSchedule)
+		schedules.GET("", h.ListSchedule)
+		schedules.GET("/:id", h.GetSchedule)
+		schedules.DELETE("/:id", h.DeleteSchedule)
+		schedules.GET("/:id/export", h.ExportSchedule)
+		schedules.PUT("/:id/items", h.AddScheduleItem)
+		schedules.DELETE("/:id/items", h.RemoveScheduleItem)
 	}
 
 	return router

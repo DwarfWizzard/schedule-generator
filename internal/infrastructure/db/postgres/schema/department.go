@@ -10,6 +10,7 @@ type Department struct {
 	ID         uuid.UUID `gorm:"column:id;type:string;primaryKey"`
 	ExternalID string    `gorm:"column:external_id;unique;not null"`
 	FacultyID  uuid.UUID `gorm:"column:faculty_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Faculty    *Faculty  `gorm:"foreignKey:faculty_id"`
 	Name       string    `gorm:"column:name;not null"`
 }
 

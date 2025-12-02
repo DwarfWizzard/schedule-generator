@@ -7,9 +7,10 @@ import (
 )
 
 type EduDirection struct {
-	ID           uuid.UUID `gorm:"column:id;type:string;primaryKey"`
-	Name         string    `gorm:"column:name;not null"`
-	DepartmentID uuid.UUID `gorm:"column:department_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	ID           uuid.UUID   `gorm:"column:id;type:string;primaryKey"`
+	Name         string      `gorm:"column:name;not null"`
+	DepartmentID uuid.UUID   `gorm:"column:department_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Department   *Department `gorm:"foreignKey:department_id"`
 }
 
 // EduDirectionToSchema

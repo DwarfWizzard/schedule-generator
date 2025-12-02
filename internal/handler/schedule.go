@@ -23,6 +23,7 @@ type ScheduleUsecase interface {
 	RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.RemoveItemFromScheduleInput) error
 	ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error
 	ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error
+	DeleteSchedule(ctx context.Context, scheduleID uuid.UUID) error
 }
 
 type ScheduleItem struct {
@@ -52,8 +53,8 @@ type CreateScheduleRequest struct {
 	//TODO: add calendar
 	EduGroupID uuid.UUID `json:"edu_group_id"`
 	Semester   int       `json:"semester"`
-	StartDate  string    `json:"start_week"`
-	EndDate    string    `json:"end_week"`
+	StartDate  string    `json:"start_date"`
+	EndDate    string    `json:"end_date"`
 }
 
 type CreateScheduleResponse struct {
@@ -83,7 +84,7 @@ func (h *Handler) CreateSchedule(c echo.Context) error {
 		endDate = &v
 	}
 
-	schedule, err := h.schedule.CreateSchedule(ctx, usecases.CreateScheduleInput{
+	out, err := h.schedule.CreateSchedule(ctx, usecases.CreateScheduleInput{
 		EduGroupID: rq.EduGroupID,
 		Semester:   rq.Semester,
 		StartDate:  startDate,
@@ -94,17 +95,7 @@ func (h *Handler) CreateSchedule(c echo.Context) error {
 		return err
 	}
 
-	respData := CreateScheduleResponse{
-		Schedule: Schedule{
-			ID:         schedule.ID,
-			EduGroupID: schedule.EduGroupID,
-			StartDate:  schedule.StartDate,
-			EndDate:    schedule.EndDate,
-			Items:      nil,
-		},
-	}
-
-	return WrapResponse(http.StatusOK, respData).Send(c)
+	return WrapResponse(http.StatusOK, scheduleDTOtoView(out.ScheduleDTO)).Send(c)
 }
 
 // ListSchedule - GET /v1/schedules
@@ -273,33 +264,54 @@ func (h *Handler) ExportSchedule(c echo.Context) error {
 	return WrapResponse(http.StatusOK, buffer).SendAsFile(c, fname, rq.Format)
 }
 
-func scheduleDTOtoView(dto usecases.ScheduleDTO) Schedule {
-	items := make([]ScheduleItem, 0, len(dto.Items))
-	for _, item := range dto.Items {
-		var wt *string
-		if item.Weektype != nil {
-			s := item.Weektype.String()
-			wt = &s
-		}
+// DeleteSchedule - DELETE /v1/schedules/:id
+func (h *Handler) DeleteSchedule(c echo.Context) error {
+	ctx := c.Request().Context()
 
-		items = append(items, ScheduleItem{
-			Discipline:    item.Discipline,
-			TeacherID:     item.TeacherID,
-			Weekday:       item.Weekday.String(),
-			StudentsCount: item.StudentsCount,
-			Date:          item.Date,
-			LessonNumber:  item.LessonNumber,
-			Subgroup:      item.Subgroup,
-			Weektype:      wt,
-			Weeknum:       item.Weeknum,
-			LessonType:    item.LessonType.String(),
-			Classroom:     string(item.Classroom),
-		})
+	scheduleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return ErrInvalidInput
+	}
+
+	if err := h.schedule.DeleteSchedule(ctx, scheduleID); err != nil {
+		return err
+	}
+
+	return WrapResponse(http.StatusOK, nil).Send(c)
+}
+
+func scheduleDTOtoView(dto usecases.ScheduleDTO) Schedule {
+	var items []ScheduleItem
+
+	if len(dto.Items) > 0 {
+		items = make([]ScheduleItem, 0, len(dto.Items))
+		for _, item := range dto.Items {
+			var wt *string
+			if item.Weektype != nil {
+				s := item.Weektype.String()
+				wt = &s
+			}
+
+			items = append(items, ScheduleItem{
+				Discipline:    item.Discipline,
+				TeacherID:     item.TeacherID,
+				Weekday:       item.Weekday.String(),
+				StudentsCount: item.StudentsCount,
+				Date:          item.Date,
+				LessonNumber:  item.LessonNumber,
+				Subgroup:      item.Subgroup,
+				Weektype:      wt,
+				Weeknum:       item.Weeknum,
+				LessonType:    item.LessonType.String(),
+				Classroom:     string(item.Classroom),
+			})
+		}
 	}
 
 	return Schedule{
 		ID:         dto.ID,
 		EduGroupID: dto.EduGroupID,
+		Type:       dto.Type.String(),
 		StartDate:  dto.StartDate,
 		EndDate:    dto.EndDate,
 		Items:      items,

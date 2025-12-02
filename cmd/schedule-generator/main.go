@@ -11,6 +11,7 @@ import (
 	"schedule-generator/internal/application/usecases"
 	"schedule-generator/internal/handler"
 	"schedule-generator/internal/infrastructure/db/postgres/repository"
+	"schedule-generator/internal/infrastructure/db/postgres/schema"
 	"schedule-generator/pkg/pggorm"
 )
 
@@ -29,6 +30,12 @@ func main() {
 	db, err := pggorm.NewDB(pgConnUrl)
 	if err != nil {
 		logger.Error("Connect to postgre error", "error", err)
+		os.Exit(1)
+	}
+
+	migrator := schema.NewMigrator(db.DB())
+	if err := migrator.Migrate(ctx); err != nil {
+		logger.Error("Migrate error", "error", err)
 		os.Exit(1)
 	}
 
@@ -66,7 +73,7 @@ func main() {
 
 	wg.Wait()
 
-	logger.Info("Closing postgre connection")
+	logger.Info("Closing postgres connection")
 	if err := db.Close(); err != nil {
 		logger.Error("Close postgres connection error", "error", err)
 	}

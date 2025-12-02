@@ -9,12 +9,26 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	ErrInvalidData  = errors.New("invalid data")
+	ErrItemNotFound = errors.New("item not found")
+)
+
 type ScheduleType int8
 
 const (
 	ScheduleTypeCycled ScheduleType = iota + 1
 	ScheduleTypeCalendar
 )
+
+var scheduleTypeNames = []string{
+	"cycled",
+	"calendar",
+}
+
+func (w ScheduleType) String() string {
+	return scheduleTypeNames[w]
+}
 
 type Schedule struct {
 	ID         uuid.UUID
@@ -50,12 +64,16 @@ type CycledSchedule struct {
 func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate time.Time) (*Schedule, error) {
 	id := uuid.New()
 
+	if semester < 0 {
+		return nil, errors.Join(ErrInvalidData, errors.New("invalid semester value"))
+	}
+
 	if startDate.IsZero() || endDate.IsZero() {
-		return nil, errors.New("both start and end dates can not be empty")
+		return nil, errors.Join(ErrInvalidData, errors.New("both start and end dates can not be empty"))
 	}
 
 	if startDate.After(endDate) {
-		return nil, errors.New("start date is after end date")
+		return nil, errors.Join(ErrInvalidData, errors.New("start date is after end date"))
 	}
 
 	return &Schedule{
@@ -108,6 +126,22 @@ func (s *CycledSchedule) AddItem(
 		argErr = errors.Join(argErr, errors.New("invalid subgroup"))
 	}
 
+	if weekday == time.Sunday {
+		argErr = errors.Join(argErr, errors.New("item can not be created for sunday"))
+	}
+
+	if studentsCount < 0 {
+		argErr = errors.Join(argErr, errors.New("invalid students count"))
+	}
+
+	if len(discipline) == 0 {
+		argErr = errors.Join(argErr, errors.New("empty discipline"))
+	}
+
+	if len(classroom) == 0 {
+		argErr = errors.Join(argErr, errors.New("empty classroom"))
+	}
+
 	wt, err := NewWeekType(weektype)
 	if err != nil {
 		argErr = errors.Join(argErr, err)
@@ -124,7 +158,7 @@ func (s *CycledSchedule) AddItem(
 	}
 
 	if argErr != nil {
-		return argErr
+		return errors.Join(ErrInvalidData, argErr)
 	}
 
 	item := ScheduleItem{
@@ -140,7 +174,7 @@ func (s *CycledSchedule) AddItem(
 	}
 
 	if vErr := s.validateItem(&item); vErr != nil {
-		return vErr
+		return errors.Join(ErrInvalidData, vErr)
 	}
 
 	s.Items[item.Weekday] = append(s.Items[item.Weekday], item)
@@ -166,7 +200,7 @@ func (s *CycledSchedule) RemoveItem(weekday time.Weekday, lessonNumber, subgroup
 	}
 
 	if argErr != nil {
-		return argErr
+		return errors.Join(ErrInvalidData, argErr)
 	}
 
 	idx := slices.IndexFunc(s.Items[weekday], func(item ScheduleItem) bool {
@@ -174,7 +208,7 @@ func (s *CycledSchedule) RemoveItem(weekday time.Weekday, lessonNumber, subgroup
 	})
 
 	if idx < 0 {
-		return errors.New("item not found")
+		return ErrItemNotFound
 	}
 
 	s.Items[weekday] = append(s.Items[weekday][:idx], s.Items[weekday][idx+1:]...)

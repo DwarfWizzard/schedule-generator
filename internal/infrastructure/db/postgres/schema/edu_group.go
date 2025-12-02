@@ -10,6 +10,7 @@ type EduGroup struct {
 	ID            uuid.UUID `gorm:"column:id;type:string;primaryKey"`
 	Number        string    `gorm:"column:number;not null;unique"`
 	EduPlanID     uuid.UUID `gorm:"column:edu_plan_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	EduPlan       *EduPlan  `gorm:"foreignKey:edu_plan_id"`
 	Profile       string    `gorm:"column:profile;not null"`
 	AdmissionYear int64     `gorm:"column:admission_year;not null"`
 }

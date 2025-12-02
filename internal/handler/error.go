@@ -52,6 +52,10 @@ func NewHttpErrorHandler(logger *slog.Logger) func(err error, c echo.Context) {
 			extras = e.Details
 
 			if e.Cause != nil {
+				if extras == nil {
+					extras = make(map[string][]string)
+				}
+
 				extras["cause"] = append(extras["cause"], e.Cause.Error())
 			}
 		default:
@@ -68,6 +72,8 @@ func NewHttpErrorHandler(logger *slog.Logger) func(err error, c echo.Context) {
 			Message: &errMessage,
 			Errors:  extras,
 		}
+
+		logger.Debug("aaaa", "err", resp)
 
 		respErr := resp.Send(c)
 

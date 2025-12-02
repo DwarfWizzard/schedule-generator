@@ -12,10 +12,11 @@ type Module struct {
 }
 
 type EduPlan struct {
-	ID          uuid.UUID `gorm:"column:id;type:string;primaryKey"`
-	DirectionID uuid.UUID `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:direction_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
-	Profile     string    `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:profile;not null"`
-	Year        int64     `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:year;not null"`
+	ID          uuid.UUID     `gorm:"column:id;type:string;primaryKey"`
+	DirectionID uuid.UUID     `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:direction_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Direction   *EduDirection `gorm:"foreignKey:direction_id"`
+	Profile     string        `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:profile;not null"`
+	Year        int64         `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:year;not null"`
 
 	Modules []Module `gorm:"foreignKey:edu_plan_id"`
 }

@@ -130,7 +130,7 @@ func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	return &GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(schedule, false)}, nil
+	return &GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(schedule, true)}, nil
 }
 
 type AddItemToScheduleInput struct {
@@ -333,7 +333,16 @@ type RemoveItemFromScheduleInput struct {
 func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []RemoveItemFromScheduleInput) error {
 	logger := uc.logger.With("schedule_id", scheduleID)
 
-	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
+	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
+	if err != nil {
+		logger.Error("Start transaction error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+	defer rollback(ctx)
+
+	repo := tx.(ScheduleUsecaseRepo)
+
+	schedule, err := repo.GetSchedule(ctx, scheduleID)
 	if err != nil {
 		logger.Error("Get schedule error", "error", err)
 		if errors.Is(err, db.ErrorNotFound) {
@@ -372,9 +381,28 @@ func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, schedule
 		}
 	}
 
-	err = uc.repo.SaveSchedule(ctx, schedule)
+	err = repo.SaveSchedule(ctx, schedule)
 	if err != nil {
 		logger.Error("Save schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		logger.Error("Save updated schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+// DeleteSchedule
+func (uc *ScheduleUsecase) DeleteSchedule(ctx context.Context, scheduleID uuid.UUID) error {
+	logger := uc.logger
+
+	err := uc.repo.DeleteSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Delete schedule error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 

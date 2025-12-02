@@ -15,7 +15,13 @@ import (
 // SaveSchedule
 func (r *Repository) SaveSchedule(ctx context.Context, d *schedules.Schedule) error {
 	s := schema.ScheduleToSchema(d)
-	err := r.client.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Save(s).Error
+
+	err := r.client.WithContext(ctx).Delete(&schema.ScheduleItem{}, "schedule_id = ?", s.ID).Error
+	if err != nil {
+		return err
+	}
+
+	err = r.client.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Save(s).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return db.ErrorUniqueViolation

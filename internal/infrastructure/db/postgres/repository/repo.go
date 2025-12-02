@@ -45,7 +45,5 @@ func (r *Repository) AsTransaction(ctx context.Context, isoLevel db.IsoLevel) (d
 		return nil
 	}
 
-	r.client = tx
-
 	return NewPostgresRepository(tx), rollback, commit, nil
 }

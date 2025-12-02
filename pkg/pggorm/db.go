@@ -12,7 +12,8 @@ type Db struct {
 
 func NewDB(connUrl string) (*Db, error) {
 	db, err := gorm.Open(postgres.Open(connUrl), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger:         logger.Default.LogMode(logger.Info),
+		TranslateError: true,
 	})
 	if err != nil {
 		return nil, err
