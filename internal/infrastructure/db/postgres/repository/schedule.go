@@ -42,10 +42,10 @@ func (r *Repository) GetSchedule(ctx context.Context, id uuid.UUID) (*schedules.
 	var s schema.Schedule
 	err := r.client.WithContext(ctx).Preload("Items", func(db *gorm.DB) *gorm.DB {
 		return db.Order(`
-			schedule_items.date NULLS LAST,
-			schedule_items.weektype NULLS LAST,
 			schedule_items.lesson_number,
-			schedule_items.subgroup
+			schedule_items.subgroup,
+			schedule_items.date NULLS LAST,
+			schedule_items.weektype NULLS LAST
 		`)
 	}).Where("id = ?", id.String()).First(&s).Error
 	if err != nil {

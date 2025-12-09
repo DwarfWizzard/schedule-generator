@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 type Handler struct {
@@ -11,6 +12,7 @@ type Handler struct {
 	eduDirection EduDirectionUsecase
 	eduGroup     EduGroupUsecase
 	eduPlan      EduPlanUsecase
+	faculty      FacultyUsecase
 	schedule     ScheduleUsecase
 	teacher      TeacherUsecase
 	logger       *slog.Logger
@@ -21,6 +23,7 @@ func NewHandler(
 	eduDirection EduDirectionUsecase,
 	eduGroup EduGroupUsecase,
 	eduPlan EduPlanUsecase,
+	faculty FacultyUsecase,
 	schedule ScheduleUsecase,
 	teacher TeacherUsecase,
 	logger *slog.Logger,
@@ -30,6 +33,7 @@ func NewHandler(
 		eduDirection: eduDirection,
 		eduGroup:     eduGroup,
 		eduPlan:      eduPlan,
+		faculty:      faculty,
 		teacher:      teacher,
 		schedule:     schedule,
 		logger:       logger,
@@ -39,8 +43,26 @@ func NewHandler(
 func (h *Handler) InitRouter() *echo.Echo {
 	router := echo.New()
 	router.HTTPErrorHandler = NewHttpErrorHandler(h.logger)
+	router.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{
+			echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS, echo.PATCH,
+		}, // Разрешённые методыj
+		AllowHeaders: []string{
+			echo.HeaderOrigin,
+			echo.HeaderContentType,
+			echo.HeaderAccept,
+			echo.HeaderAuthorization,
+			"Refresh-Token",
+		}, // Разрешённые заголовки
+	}))
 
 	api := router.Group("/v1")
+
+	faculties := api.Group("/faculties")
+	{
+		faculties.GET("", h.ListFaculty)
+	}
 
 	departments := api.Group("/departments")
 	{

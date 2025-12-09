@@ -20,9 +20,10 @@ type EduDirectionUsecase interface {
 }
 
 type EduDirection struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	DepartmentID uuid.UUID `json:"department_id"`
+	ID             uuid.UUID `json:"id"`
+	Name           string    `json:"name"`
+	DepartmentID   uuid.UUID `json:"department_id"`
+	DepartmentName string    `json:"department_name"`
 }
 
 type CreateEduDirectionRequest struct {
@@ -52,7 +53,7 @@ func (h *Handler) CreateEduDirection(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusCreated, eduDirectionToView(&out.EduDirection)).Send(c)
+	return WrapResponse(http.StatusCreated, eduDirectionToView(&out.EduDirection, out.DepartmentName)).Send(c)
 }
 
 func (h *Handler) GetEduDirection(c echo.Context) error {
@@ -69,7 +70,7 @@ func (h *Handler) GetEduDirection(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection)).Send(c)
+	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection, out.DepartmentName)).Send(c)
 }
 
 func (h *Handler) ListEduDirection(c echo.Context) error {
@@ -83,7 +84,7 @@ func (h *Handler) ListEduDirection(c echo.Context) error {
 
 	result := make([]EduDirection, len(out))
 	for i, d := range out {
-		result[i] = eduDirectionToView(&d.EduDirection)
+		result[i] = eduDirectionToView(&d.EduDirection, d.DepartmentName)
 	}
 
 	return WrapResponse(http.StatusOK, result).Send(c)
@@ -112,7 +113,7 @@ func (h *Handler) UpdateEduDirection(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection)).Send(c)
+	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection, out.DepartmentName)).Send(c)
 }
 
 func (h *Handler) DeleteEduDirection(c echo.Context) error {
@@ -131,10 +132,11 @@ func (h *Handler) DeleteEduDirection(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
-func eduDirectionToView(model *edudirections.EduDirection) EduDirection {
+func eduDirectionToView(model *edudirections.EduDirection, departmentName string) EduDirection {
 	return EduDirection{
-		ID:           model.ID,
-		Name:         model.Name,
-		DepartmentID: model.DepartmentID,
+		ID:             model.ID,
+		Name:           model.Name,
+		DepartmentID:   model.DepartmentID,
+		DepartmentName: departmentName,
 	}
 }

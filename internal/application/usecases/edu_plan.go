@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	edudirections "schedule-generator/internal/domain/edu_directions"
@@ -16,6 +17,8 @@ import (
 type EduPlanUsecaseRepo interface {
 	edudirections.Repository
 	eduplans.Repository
+
+	MapEduDirectionByEduPlans(ctx context.Context, plansIDs uuid.UUIDs) (map[uuid.UUID]edudirections.EduDirection, error)
 }
 
 type EduPlanUsecase struct {
@@ -38,6 +41,7 @@ type CreateEduPlanInput struct {
 
 type CreateEduPlanOutput struct {
 	eduplans.EduPlan
+	DirectionName string
 }
 
 // CreateEduPlan
@@ -71,12 +75,14 @@ func (uc *EduPlanUsecase) CreateEduPlan(ctx context.Context, input CreateEduPlan
 	}
 
 	return &CreateEduPlanOutput{
-		EduPlan: *eduplan,
+		EduPlan:       *eduplan,
+		DirectionName: direction.Name,
 	}, nil
 }
 
 type GetEduPlanOutput struct {
 	eduplans.EduPlan
+	DirectionName string
 }
 
 // GetEduPlan
@@ -93,8 +99,15 @@ func (uc *EduPlanUsecase) GetEduPlan(ctx context.Context, eduplanID uuid.UUID) (
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	direction, err := uc.repo.GetEduDirection(ctx, eduplan.DirectionID)
+	if err != nil {
+		logger.Error("Get eduplans direction error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
 	return &GetEduPlanOutput{
-		EduPlan: *eduplan,
+		EduPlan:       *eduplan,
+		DirectionName: direction.Name,
 	}, nil
 }
 
@@ -102,17 +115,35 @@ func (uc *EduPlanUsecase) GetEduPlan(ctx context.Context, eduplanID uuid.UUID) (
 func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context) ([]GetEduPlanOutput, error) {
 	logger := uc.logger
 
-	eduplans, err := uc.repo.ListEduPlan(ctx)
+	plans, err := uc.repo.ListEduPlan(ctx)
 	if err != nil {
-		logger.Error("List eduplan error", "error", err)
+		logger.Error("List edu plan error", "error", err)
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	result := make([]GetEduPlanOutput, len(eduplans))
+	planIDs := make(uuid.UUIDs, len(plans))
+	for i, plan := range plans {
+		planIDs[i] = plan.ID
+	}
 
-	for i, eduplan := range eduplans {
+	directions, err := uc.repo.MapEduDirectionByEduPlans(ctx, planIDs)
+	if err != nil {
+		logger.Error("Map edu directions error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	result := make([]GetEduPlanOutput, len(plans))
+
+	for i, plan := range plans {
+		direction, ok := directions[plan.DirectionID]
+		if !ok {
+			logger.Error(fmt.Sprintf("Edu direction for edu plan %s not found", plan.ID))
+			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+		}
+
 		result[i] = GetEduPlanOutput{
-			EduPlan: eduplan,
+			EduPlan:       plan,
+			DirectionName: direction.Name,
 		}
 	}
 

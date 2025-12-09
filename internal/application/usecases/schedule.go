@@ -3,7 +3,9 @@ package usecases
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"strconv"
 	"time"
@@ -20,7 +22,9 @@ import (
 type ScheduleUsecaseRepo interface {
 	schedules.Repository
 	edugroups.Repository
+
 	GetScheduleByEduGroupIDAndSemester(ctx context.Context, eduGroupID uuid.UUID, semester int) (*schedules.Schedule, error)
+	MapEduGroupsBySchedules(ctx context.Context, scheduleIDs uuid.UUIDs) (map[uuid.UUID]edugroups.EduGroup, error)
 
 	db.TransactionalRepository
 }
@@ -42,6 +46,7 @@ func NewScheduleUsecase(repo ScheduleUsecaseRepo, exporter exporter.Factory, log
 type ScheduleDTO struct {
 	ID         uuid.UUID
 	EduGroupID uuid.UUID
+	Semester   int
 	Type       schedules.ScheduleType
 	StartDate  *time.Time
 	EndDate    *time.Time
@@ -57,11 +62,22 @@ type CreateScheduleInput struct {
 
 type CreateScheduleOutput struct {
 	ScheduleDTO
+	EduGroupNumber string
 }
 
 // CreateSchedule
 func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateScheduleInput) (*CreateScheduleOutput, error) {
 	logger := uc.logger.With("edu_group_id", input.EduGroupID)
+
+	group, err := uc.repo.GetEduGroup(ctx, input.EduGroupID)
+	if err != nil {
+		logger.Error("Get edu group error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("edu group not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
 
 	if _, err := uc.repo.GetScheduleByEduGroupIDAndSemester(ctx, input.EduGroupID, input.Semester); err == nil {
 		return nil, execerror.NewExecError(execerror.TypeProcessingConflict, errors.New("schedule for group and semester already exists")).
@@ -88,32 +104,14 @@ func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateSched
 	}
 
 	return &CreateScheduleOutput{
-		ScheduleDTO: scheduleToCycledScheduleDTO(schedule, false),
+		ScheduleDTO:    scheduleToCycledScheduleDTO(schedule, false),
+		EduGroupNumber: group.Number,
 	}, nil
-}
-
-type ListScheduleOutput = []ScheduleDTO
-
-// ListSchedule
-func (uc *ScheduleUsecase) ListSchedule(ctx context.Context) (ListScheduleOutput, error) {
-	logger := uc.logger
-
-	list, err := uc.repo.ListSchedule(ctx)
-	if err != nil {
-		logger.Error("Get list schedule error", "error", err)
-		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
-	}
-
-	result := make(ListScheduleOutput, len(list))
-	for idx, schedule := range list {
-		result[idx] = scheduleToCycledScheduleDTO(&schedule, false)
-	}
-
-	return result, nil
 }
 
 type GetScheduleOutput struct {
 	ScheduleDTO
+	EduGroupNumber string
 }
 
 // GetSchedule
@@ -130,7 +128,50 @@ func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	return &GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(schedule, true)}, nil
+	group, err := uc.repo.GetEduGroup(ctx, schedule.EduGroupID)
+	if err != nil {
+		logger.Error("Get schedules group error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return &GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(schedule, true), EduGroupNumber: group.Number}, nil
+}
+
+type ListScheduleOutput = []GetScheduleOutput
+
+// ListSchedule
+func (uc *ScheduleUsecase) ListSchedule(ctx context.Context) (ListScheduleOutput, error) {
+	logger := uc.logger
+
+	schedules, err := uc.repo.ListSchedule(ctx)
+	if err != nil {
+		logger.Error("Get list schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	scheduleIDs := make(uuid.UUIDs, len(schedules))
+	for i, schedule := range schedules {
+		scheduleIDs[i] = schedule.ID
+	}
+
+	groups, err := uc.repo.MapEduGroupsBySchedules(ctx, scheduleIDs)
+	if err != nil {
+		logger.Error("Map edu groups by schedules error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	result := make(ListScheduleOutput, len(schedules))
+	for idx, schedule := range schedules {
+		group, ok := groups[schedule.EduGroupID]
+		if !ok {
+			logger.Error(fmt.Sprintf("Edu group for schedule %s not found", group.ID))
+			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+		}
+
+		result[idx] = GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(&schedule, true), EduGroupNumber: group.Number}
+	}
+
+	return result, nil
 }
 
 type AddItemToScheduleInput struct {
@@ -302,6 +343,8 @@ func (uc *ScheduleUsecase) ExportCycledScheduleAsCalendar(ctx context.Context, s
 		return execerror.NewExecError(execerror.TypeInvalidInput, err)
 	}
 
+	log.Println(calendarSchedule.ListItem())
+
 	exp, err := uc.exporter.ByFormat(format)
 	if err != nil {
 		logger.Error("Get exporter by formate error", "error", err)
@@ -418,6 +461,7 @@ func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, withItems bool) S
 
 	dto := ScheduleDTO{
 		ID:         schedule.ID,
+		Semester:   schedule.Semester,
 		EduGroupID: schedule.EduGroupID,
 		Items:      items,
 	}

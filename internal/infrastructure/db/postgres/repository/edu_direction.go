@@ -66,6 +66,47 @@ func (r *Repository) ListEduDirection(ctx context.Context) ([]edudirections.EduD
 	return result, nil
 }
 
+// ListEduDirectionByIDs
+func (r *Repository) ListEduDirectionByIDs(ctx context.Context, ids uuid.UUIDs) ([]edudirections.EduDirection, error) {
+	var list []schema.EduDirection
+	err := r.client.WithContext(ctx).Where("id IN ?", ids).Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]edudirections.EduDirection, len(list))
+	for i, v := range list {
+		result[i] = *schema.EduDirectionFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// MapEduDirectionByEduPlans
+func (r *Repository) MapEduDirectionByEduPlans(ctx context.Context, plansIDs uuid.UUIDs) (map[uuid.UUID]edudirections.EduDirection, error) {
+	var planList []schema.EduPlan
+
+	err := r.client.WithContext(ctx).Preload("Direction").Find(&planList, plansIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]edudirections.EduDirection)
+	for _, planSchema := range planList {
+		if planSchema.Direction == nil {
+			continue
+		}
+
+		result[planSchema.DirectionID] = *schema.EduDirectionFromSchema(planSchema.Direction)
+	}
+
+	return result, nil
+}
+
 // DeleteEduDirection
 func (r *Repository) DeleteEduDirection(ctx context.Context, id uuid.UUID) error {
 	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.EduDirection{}).Error

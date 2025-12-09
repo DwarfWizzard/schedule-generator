@@ -66,6 +66,47 @@ func (r *Repository) ListDepartment(ctx context.Context) ([]departments.Departme
 	return result, nil
 }
 
+// ListDepartmentByIDs
+func (r *Repository) ListDepartmentByIDs(ctx context.Context, ids uuid.UUIDs) ([]departments.Department, error) {
+	var list []schema.Department
+	err := r.client.WithContext(ctx).Where("id IN ?", ids).Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]departments.Department, len(list))
+	for i, v := range list {
+		result[i] = *schema.DepartmentFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// MapDepartmentsByEduDirections
+func (r *Repository) MapDepartmentsByEduDirections(ctx context.Context, directionIDs uuid.UUIDs) (map[uuid.UUID]departments.Department, error) {
+	var dirList []schema.EduDirection
+
+	err := r.client.WithContext(ctx).Preload("Department").Find(&dirList, directionIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]departments.Department)
+	for _, dirSchema := range dirList {
+		if dirSchema.Department == nil {
+			continue
+		}
+
+		result[dirSchema.DepartmentID] = *schema.DepartmentFromSchema(dirSchema.Department)
+	}
+
+	return result, nil
+}
+
 // DeleteDepartment
 func (r *Repository) DeleteDepartment(ctx context.Context, id uuid.UUID) error {
 	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.Department{}).Error

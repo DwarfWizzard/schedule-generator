@@ -231,8 +231,13 @@ func (s *CycledSchedule) validateItem(item *ScheduleItem) error {
 			*current.Weektype == WeekTypeBoth ||
 			*item.Weektype == WeekTypeBoth
 
-		if current.LessonNumber == item.LessonNumber && current.Subgroup == item.Subgroup && weekConflict {
-			return fmt.Errorf("duplicate lesson for this weekday and subgroup on week %d", current.Weektype)
+		subgroupConflict :=
+			current.Subgroup == item.Subgroup ||
+				current.Subgroup == 0 ||
+				item.Subgroup == 0
+
+		if current.LessonNumber == item.LessonNumber && subgroupConflict && weekConflict {
+			return fmt.Errorf("duplicate lesson for this weekday and subgroup on week %v", current.Weektype)
 		}
 	}
 

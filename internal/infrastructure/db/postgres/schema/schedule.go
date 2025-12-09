@@ -27,6 +27,7 @@ type ScheduleItem struct {
 type Schedule struct {
 	ID         uuid.UUID `gorm:"column:id;type:string;primaryKey"`
 	EduGroupID uuid.UUID `gorm:"column:edu_group_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	EduGroup   *EduGroup `gorm:"foreignKey:edu_group_id"`
 	Semester   int       `gorm:"column:semester;not null"`
 	Type       int8      `gorm:"column:type;not null"`
 

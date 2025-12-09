@@ -20,10 +20,11 @@ type DepartmentUsecase interface {
 }
 
 type Department struct {
-	ID         uuid.UUID `json:"id"`
-	ExternalID string    `json:"external_id"`
-	FacultyID  uuid.UUID `json:"faculty_id"`
-	Name       string    `json:"name"`
+	ID          uuid.UUID `json:"id"`
+	ExternalID  string    `json:"external_id"`
+	FacultyID   uuid.UUID `json:"faculty_id"`
+	FacultyName string    `json:"faculty_name"`
+	Name        string    `json:"name"`
 }
 
 type CreateDepartmentRequest struct {
@@ -52,7 +53,7 @@ func (h *Handler) CreateDepartment(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, departmentToView(&out.Department)).Send(c)
+	return WrapResponse(http.StatusOK, departmentToView(&out.Department, out.FacultyName)).Send(c)
 }
 
 // GetDepartment - GET /v1/departments/:id
@@ -70,7 +71,7 @@ func (h *Handler) GetDepartment(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, departmentToView(&out.Department)).Send(c)
+	return WrapResponse(http.StatusOK, departmentToView(&out.Department, out.FacultyName)).Send(c)
 }
 
 // ListDepartment - GET /v1/departments
@@ -85,7 +86,7 @@ func (h *Handler) ListDepartment(c echo.Context) error {
 
 	result := make([]Department, len(out))
 	for i, d := range out {
-		result[i] = departmentToView(&d)
+		result[i] = departmentToView(&d.Department, d.FacultyName)
 	}
 
 	return WrapResponse(http.StatusOK, result).Send(c)
@@ -121,7 +122,7 @@ func (h *Handler) UpdateDepartment(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, departmentToView(&out.Department)).Send(c)
+	return WrapResponse(http.StatusOK, departmentToView(&out.Department, out.FacultyName)).Send(c)
 }
 
 // DeleteDepartment - DELETE /v1/departments/:id
@@ -142,11 +143,12 @@ func (h *Handler) DeleteDepartment(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
-func departmentToView(model *departments.Department) Department {
+func departmentToView(model *departments.Department, facultyName string) Department {
 	return Department{
-		ID:         model.ID,
-		ExternalID: model.ExternalID,
-		FacultyID:  model.FacultyID,
-		Name:       model.Name,
+		ID:          model.ID,
+		ExternalID:  model.ExternalID,
+		FacultyID:   model.FacultyID,
+		FacultyName: facultyName,
+		Name:        model.Name,
 	}
 }

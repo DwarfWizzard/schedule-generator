@@ -72,7 +72,6 @@ func (h *Handler) GetEduGroup(c echo.Context) error {
 
 	return WrapResponse(http.StatusOK, eduGroupToView(&out.EduGroup)).Send(c)
 }
-
 // ListEduGroup - GET /v1/edu-groups
 func (h *Handler) ListEduGroup(c echo.Context) error {
 	ctx := c.Request().Context()

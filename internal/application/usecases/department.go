@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"schedule-generator/internal/domain/departments"
@@ -16,6 +17,8 @@ import (
 type DepartmentUsecaseRepo interface {
 	departments.Repository
 	faculties.Repository
+
+	MapFacultiesByDepartments(ctx context.Context, departmentIDs uuid.UUIDs) (map[uuid.UUID]faculties.Faculty, error)
 }
 
 type DepartmentUsecase struct {
@@ -38,6 +41,7 @@ type CreateDepartmentInput struct {
 
 type CreateDepartmentOutput struct {
 	departments.Department
+	FacultyName string
 }
 
 // CreateDepartment
@@ -72,12 +76,14 @@ func (uc *DepartmentUsecase) CreateDepartment(ctx context.Context, input CreateD
 	}
 
 	return &CreateDepartmentOutput{
-		Department: *department,
+		Department:  *department,
+		FacultyName: faculty.Name,
 	}, nil
 }
 
 type GetDepartmentOutput struct {
 	departments.Department
+	FacultyName string
 }
 
 // GetDepartment
@@ -94,12 +100,19 @@ func (uc *DepartmentUsecase) GetDepartment(ctx context.Context, departmentID uui
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	faculty, err := uc.repo.GetFaculty(ctx, department.FacultyID)
+	if err != nil {
+		logger.Error("Get faculty error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
 	return &GetDepartmentOutput{
-		Department: *department,
+		Department:  *department,
+		FacultyName: faculty.Name,
 	}, nil
 }
 
-type ListDepartmentOutput = []departments.Department
+type ListDepartmentOutput = []GetDepartmentOutput
 
 // ListDepartment
 func (uc *DepartmentUsecase) ListDepartment(ctx context.Context) (ListDepartmentOutput, error) {
@@ -111,9 +124,31 @@ func (uc *DepartmentUsecase) ListDepartment(ctx context.Context) (ListDepartment
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	result := make(ListDepartmentOutput, len(departments))
+	departmentIDs := make(uuid.UUIDs, len(departments))
 
-	copy(result, departments)
+	for i, dep := range departments {
+		departmentIDs[i] = dep.ID
+	}
+
+	faculties, err := uc.repo.MapFacultiesByDepartments(ctx, departmentIDs)
+	if err != nil {
+		logger.Error("Map faculties by departments error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	result := make(ListDepartmentOutput, len(departments))
+	for i, dep := range departments {
+		faculty, ok := faculties[dep.FacultyID]
+		if !ok {
+			logger.Error(fmt.Sprintf("Faculty for department %s not found", dep.ID))
+			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+		}
+
+		result[i] = GetDepartmentOutput{
+			Department:  dep,
+			FacultyName: faculty.Name,
+		}
+	}
 
 	return result, nil
 }
@@ -126,6 +161,7 @@ type UpdateDepartmentInput struct {
 
 type UpdateDepartmentOutput struct {
 	departments.Department
+	FacultyName string
 }
 
 // UpdateDepartment
@@ -139,6 +175,12 @@ func (uc *DepartmentUsecase) UpdateDepartment(ctx context.Context, input UpdateD
 			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("department not found"))
 		}
 
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	faculty, err := uc.repo.GetFaculty(ctx, department.FacultyID)
+	if err != nil {
+		logger.Error("Get faculty error", "error", err)
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
@@ -167,7 +209,8 @@ func (uc *DepartmentUsecase) UpdateDepartment(ctx context.Context, input UpdateD
 	}
 
 	return &UpdateDepartmentOutput{
-		Department: *department,
+		Department:  *department,
+		FacultyName: faculty.Name,
 	}, nil
 }
 

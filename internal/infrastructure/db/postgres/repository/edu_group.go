@@ -81,6 +81,27 @@ func (r *Repository) ListEduGroup(ctx context.Context) ([]edugroups.EduGroup, er
 	return result, nil
 }
 
+// MapEduPlansByEduGroups
+func (r *Repository) MapEduGroupsBySchedules(ctx context.Context, scheduleIDs uuid.UUIDs) (map[uuid.UUID]edugroups.EduGroup, error) {
+	var scheduleList []schema.Schedule
+
+	err := r.client.WithContext(ctx).Preload("EduGroup").Find(&scheduleList, scheduleIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]edugroups.EduGroup)
+	for _, schedileSchema := range scheduleList {
+		if schedileSchema.EduGroup == nil {
+			continue
+		}
+
+		result[schedileSchema.EduGroupID] = *schema.EduGroupFromSchema(schedileSchema.EduGroup)
+	}
+
+	return result, nil
+}
+
 // DeleteEduGroup
 func (r *Repository) DeleteEduGroup(ctx context.Context, id uuid.UUID) error {
 	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.EduGroup{}).Error

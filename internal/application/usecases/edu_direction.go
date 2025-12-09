@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"schedule-generator/internal/domain/departments"
@@ -16,6 +17,8 @@ import (
 type EduDirectionUsecaseRepo interface {
 	departments.Repository
 	edudirections.Repository
+
+	MapDepartmentsByEduDirections(ctx context.Context, directionIDs uuid.UUIDs) (map[uuid.UUID]departments.Department, error)
 }
 
 type EduDirectionUsecase struct {
@@ -37,6 +40,7 @@ type CreateEduDirectionInput struct {
 
 type CreateEduDirectionOutput struct {
 	edudirections.EduDirection
+	DepartmentName string
 }
 
 // CreateEduDirection
@@ -65,12 +69,14 @@ func (uc *EduDirectionUsecase) CreateEduDirection(ctx context.Context, input Cre
 	}
 
 	return &CreateEduDirectionOutput{
-		EduDirection: *direction,
+		EduDirection:   *direction,
+		DepartmentName: department.Name,
 	}, nil
 }
 
 type GetEduDirectionOutput struct {
 	edudirections.EduDirection
+	DepartmentName string
 }
 
 // GetEduDirection
@@ -87,8 +93,15 @@ func (uc *EduDirectionUsecase) GetEduDirection(ctx context.Context, directionID 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	department, err := uc.repo.GetDepartment(ctx, direction.DepartmentID)
+	if err != nil {
+		logger.Error("Get edu direction department error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
 	return &GetEduDirectionOutput{
-		EduDirection: *direction,
+		EduDirection:   *direction,
+		DepartmentName: department.Name,
 	}, nil
 }
 
@@ -104,9 +117,27 @@ func (uc *EduDirectionUsecase) ListEduDirection(ctx context.Context) ([]GetEduDi
 
 	result := make([]GetEduDirectionOutput, len(directions))
 
+	directionIDs := make(uuid.UUIDs, len(directions))
 	for i, direction := range directions {
+		directionIDs[i] = direction.ID
+	}
+
+	departments, err := uc.repo.MapDepartmentsByEduDirections(ctx, directionIDs)
+	if err != nil {
+		logger.Error("Map departments by edu direction error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	for i, direction := range directions {
+		department, ok := departments[direction.DepartmentID]
+		if !ok {
+			logger.Error(fmt.Sprintf("Department for direction %s not found", direction.ID))
+			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+		}
+
 		result[i] = GetEduDirectionOutput{
-			EduDirection: direction,
+			EduDirection:   direction,
+			DepartmentName: department.Name,
 		}
 	}
 
@@ -119,14 +150,14 @@ type UpdateEduDirectionInput struct {
 }
 
 type UpdateEduDirectionOutput struct {
-	edudirections.EduDirection
+	GetEduDirectionOutput
 }
 
 // UpdateEduDirection
 func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input UpdateEduDirectionInput) (*UpdateEduDirectionOutput, error) {
 	logger := uc.logger
 
-	edudirection, err := uc.repo.GetEduDirection(ctx, input.EduDirectionID)
+	direction, err := uc.repo.GetEduDirection(ctx, input.EduDirectionID)
 	if err != nil {
 		logger.Error("List edu direction error", "error", err)
 		if errors.Is(err, db.ErrorNotFound) {
@@ -136,15 +167,21 @@ func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input Upd
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	if input.Name != nil {
-		edudirection.Name = *input.Name
+	department, err := uc.repo.GetDepartment(ctx, direction.DepartmentID)
+	if err != nil {
+		logger.Error("Get edu direction department error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	if err := edudirection.Validate(); err != nil {
+	if input.Name != nil {
+		direction.Name = *input.Name
+	}
+
+	if err := direction.Validate(); err != nil {
 		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
 	}
 
-	err = uc.repo.SaveEduDirection(ctx, edudirection)
+	err = uc.repo.SaveEduDirection(ctx, direction)
 	if err != nil {
 		logger.Error("Save edu edu direction error", "error", err)
 
@@ -157,7 +194,10 @@ func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input Upd
 	}
 
 	return &UpdateEduDirectionOutput{
-		EduDirection: *edudirection,
+		GetEduDirectionOutput: GetEduDirectionOutput{
+			EduDirection:   *direction,
+			DepartmentName: department.Name,
+		},
 	}, nil
 }
 

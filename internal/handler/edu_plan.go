@@ -19,11 +19,12 @@ type EduPlanUsecase interface {
 }
 
 type EduPlan struct {
-	ID          uuid.UUID         `json:"id"`
-	DirectionID uuid.UUID         `json:"direction_id"`
-	Profile     string            `json:"profile"`
-	Year        int64             `json:"year"`
-	Modules     []eduplans.Module `json:"modules"`
+	ID            uuid.UUID         `json:"id"`
+	DirectionID   uuid.UUID         `json:"direction_id"`
+	DirectionName string            `json:"direction_name"`
+	Profile       string            `json:"profile"`
+	Year          int64             `json:"year"`
+	Modules       []eduplans.Module `json:"modules"`
 }
 
 type CreateEduPlanRequest struct {
@@ -50,7 +51,7 @@ func (h *Handler) CreateEduPlan(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusCreated, eduPlanToView(&out.EduPlan)).Send(c)
+	return WrapResponse(http.StatusCreated, eduPlanToView(&out.EduPlan, out.DirectionName)).Send(c)
 }
 
 // GetEduPlan - GET /v1/edu-plans/:id
@@ -67,7 +68,7 @@ func (h *Handler) GetEduPlan(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, eduPlanToView(&out.EduPlan)).Send(c)
+	return WrapResponse(http.StatusOK, eduPlanToView(&out.EduPlan, out.DirectionName)).Send(c)
 }
 
 // ListEduPlan - GET /v1/edu-plans
@@ -81,7 +82,7 @@ func (h *Handler) ListEduPlan(c echo.Context) error {
 
 	result := make([]EduPlan, len(out))
 	for i, d := range out {
-		result[i] = eduPlanToView(&d.EduPlan)
+		result[i] = eduPlanToView(&d.EduPlan, d.DirectionName)
 	}
 
 	return WrapResponse(http.StatusOK, result).Send(c)
@@ -103,12 +104,13 @@ func (h *Handler) DeleteEduPlan(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
-func eduPlanToView(model *eduplans.EduPlan) EduPlan {
+func eduPlanToView(model *eduplans.EduPlan, directionName string) EduPlan {
 	return EduPlan{
-		ID:          model.ID,
-		DirectionID: model.DirectionID,
-		Profile:     model.Profile,
-		Year:        model.Year,
-		Modules:     model.Modules,
+		ID:            model.ID,
+		DirectionID:   model.DirectionID,
+		DirectionName: directionName,
+		Profile:       model.Profile,
+		Year:          model.Year,
+		Modules:       model.Modules,
 	}
 }

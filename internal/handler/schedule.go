@@ -27,26 +27,28 @@ type ScheduleUsecase interface {
 }
 
 type ScheduleItem struct {
-	Discipline    string
-	TeacherID     uuid.UUID
-	Weekday       string
-	StudentsCount int16
-	Date          *time.Time
-	LessonNumber  int8
-	Subgroup      int8
-	Weektype      *string
-	Weeknum       *int
-	LessonType    string
-	Classroom     string
+	Discipline    string     `json:"discipline"`
+	TeacherID     uuid.UUID  `json:"teacher_id"`
+	Weekday       string     `json:"weekday"`
+	StudentsCount int16      `json:"students_count"`
+	Date          *time.Time `json:"date"`
+	LessonNumber  int8       `json:"lesson_number"`
+	Subgroup      int8       `json:"subgroup"`
+	Weektype      *int8      `json:"weektype"`
+	Weeknum       *int       `json:"weeknum"`
+	LessonType    int8       `json:"lesson_type"`
+	Classroom     string     `json:"classroom"`
 }
 
 type Schedule struct {
-	ID         uuid.UUID      `json:"id"`
-	EduGroupID uuid.UUID      `json:"edu_group_id"`
-	Type       string         `json:"type"`
-	StartDate  *time.Time     `json:"start_week"`
-	EndDate    *time.Time     `json:"end_week"`
-	Items      []ScheduleItem `json:"schedule_item"`
+	ID             uuid.UUID      `json:"id"`
+	EduGroupID     uuid.UUID      `json:"edu_group_id"`
+	EduGroupNumber string         `json:"edu_group_number"`
+	Semester       int            `json:"semester"`
+	Type           string         `json:"type"`
+	StartDate      *time.Time     `json:"start_date"`
+	EndDate        *time.Time     `json:"end_date"`
+	Items          []ScheduleItem `json:"items"`
 }
 
 type CreateScheduleRequest struct {
@@ -95,7 +97,7 @@ func (h *Handler) CreateSchedule(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, scheduleDTOtoView(out.ScheduleDTO)).Send(c)
+	return WrapResponse(http.StatusOK, scheduleDTOtoView(out.ScheduleDTO, out.EduGroupNumber)).Send(c)
 }
 
 // ListSchedule - GET /v1/schedules
@@ -110,8 +112,8 @@ func (h *Handler) ListSchedule(c echo.Context) error {
 
 	result := make([]Schedule, len(list))
 
-	for idx, schedule := range list {
-		result[idx] = scheduleDTOtoView(schedule)
+	for idx, d := range list {
+		result[idx] = scheduleDTOtoView(d.ScheduleDTO, d.EduGroupNumber)
 	}
 
 	return WrapResponse(http.StatusOK, result).Send(c)
@@ -132,7 +134,7 @@ func (h *Handler) GetSchedule(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, scheduleDTOtoView(out.ScheduleDTO)).Send(c)
+	return WrapResponse(http.StatusOK, scheduleDTOtoView(out.ScheduleDTO, out.EduGroupNumber)).Send(c)
 }
 
 type AddScheduleItemRequest struct {
@@ -280,15 +282,15 @@ func (h *Handler) DeleteSchedule(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
-func scheduleDTOtoView(dto usecases.ScheduleDTO) Schedule {
+func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule {
 	var items []ScheduleItem
 
 	if len(dto.Items) > 0 {
 		items = make([]ScheduleItem, 0, len(dto.Items))
 		for _, item := range dto.Items {
-			var wt *string
+			var wt *int8
 			if item.Weektype != nil {
-				s := item.Weektype.String()
+				s := int8(*item.Weektype)
 				wt = &s
 			}
 
@@ -302,18 +304,20 @@ func scheduleDTOtoView(dto usecases.ScheduleDTO) Schedule {
 				Subgroup:      item.Subgroup,
 				Weektype:      wt,
 				Weeknum:       item.Weeknum,
-				LessonType:    item.LessonType.String(),
+				LessonType:    int8(item.LessonType),
 				Classroom:     string(item.Classroom),
 			})
 		}
 	}
 
 	return Schedule{
-		ID:         dto.ID,
-		EduGroupID: dto.EduGroupID,
-		Type:       dto.Type.String(),
-		StartDate:  dto.StartDate,
-		EndDate:    dto.EndDate,
-		Items:      items,
+		ID:             dto.ID,
+		EduGroupID:     dto.EduGroupID,
+		EduGroupNumber: eduGroupNumber,
+		Semester:       dto.Semester,
+		Type:           dto.Type.String(),
+		StartDate:      dto.StartDate,
+		EndDate:        dto.EndDate,
+		Items:          items,
 	}
 }

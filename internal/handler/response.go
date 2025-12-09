@@ -16,10 +16,6 @@ type ResponseWrapper struct {
 }
 
 func WrapResponse(status int, payload any) *ResponseWrapper {
-	if payload == nil && status == http.StatusOK {
-		status = http.StatusNoContent
-	}
-
 	return &ResponseWrapper{
 		Status:   status,
 		Response: payload,
@@ -30,10 +26,6 @@ func WrapResponse(status int, payload any) *ResponseWrapper {
 func (rw *ResponseWrapper) Send(c echo.Context) error {
 	if rw == nil {
 		return nil
-	}
-
-	if rw.Response == nil && rw.Status < 400 {
-		return c.NoContent(rw.Status)
 	}
 
 	return c.JSON(rw.Status, rw)
