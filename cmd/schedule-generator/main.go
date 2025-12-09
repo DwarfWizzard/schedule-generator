@@ -47,6 +47,7 @@ func main() {
 		usecases.NewEduDirectionUsecase(repo, logger),
 		usecases.NewEduGroupUsecase(repo, logger),
 		usecases.NewEduPlanUsecase(repo, logger),
+		usecases.NewFacultyUsecase(repo, logger),
 		usecases.NewScheduleUsecase(repo, exp, logger),
 		usecases.NewTeacherUsecase(repo, logger),
 		logger,
