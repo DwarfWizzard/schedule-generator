@@ -12,6 +12,7 @@ import (
 var (
 	ErrInvalidData  = errors.New("invalid data")
 	ErrItemNotFound = errors.New("item not found")
+	ErrItemConflict = errors.New("item conflict")
 )
 
 type ScheduleType int8
@@ -237,7 +238,7 @@ func (s *CycledSchedule) validateItem(item *ScheduleItem) error {
 				item.Subgroup == 0
 
 		if current.LessonNumber == item.LessonNumber && subgroupConflict && weekConflict {
-			return fmt.Errorf("duplicate lesson for this weekday and subgroup on week %v", current.Weektype)
+			return fmt.Errorf("%w: duplicate lesson for this weekday and subgroup on week %v", ErrItemConflict, current.Weektype)
 		}
 	}
 
@@ -404,7 +405,7 @@ func (s *CalendarSchedule) validateItem(item *ScheduleItem) error {
 
 	for _, current := range s.Items {
 		if current.Date.Equal(*item.Date) && current.LessonNumber == item.LessonNumber && current.Subgroup == item.Subgroup {
-			return fmt.Errorf("duplicate lesson for this subgroup on date %s", item.Date.Format(time.DateOnly))
+			return fmt.Errorf("%w: duplicate lesson for this subgroup on date %s", ErrItemConflict, item.Date.Format(time.DateOnly))
 		}
 	}
 

@@ -59,7 +59,7 @@ func main() {
 
 	wg.Go(func() {
 		defer cancel()
-		if err := router.Start(":8080"); err != nil {
+		if err := router.Start(":" + os.Getenv("API_PORT")); err != nil {
 			logger.Error("Start router error", "error", err)
 		}
 	})

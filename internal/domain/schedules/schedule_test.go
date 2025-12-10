@@ -58,7 +58,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 	teacherID := uuid.New()
 	weekType := WeekTypeBoth
 
-	suitcases := map[string]struct {
+	type input struct {
 		discipline    string
 		teacherID     uuid.UUID
 		weekday       time.Weekday
@@ -68,182 +68,426 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 		weektype      int8
 		lessonType    int8
 		classroom     string
-		result        *ScheduleItem
-		err           error
-	}{
-		"happy-path": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: 0,
-			lessonNumber:  0,
-			subgroup:      0,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "test",
-			result: &ScheduleItem{
-				Discipline:    "test",
-				TeacherID:     teacherID,
-				Weekday:       time.Monday,
-				StudentsCount: 0,
-				LessonNumber:  0,
-				Subgroup:      0,
-				Weektype:      &weekType,
-				LessonType:    ItemTypeLecture,
-				Classroom:     "test",
+	}
+
+	t.Run("invalid inputs", func(t *testing.T) {
+		suitcases := map[string]struct {
+			input
+			result *ScheduleItem
+			err    error
+		}{
+			"happy-path": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				result: &ScheduleItem{
+					Discipline:    "test",
+					TeacherID:     teacherID,
+					Weekday:       time.Monday,
+					StudentsCount: 0,
+					LessonNumber:  0,
+					Subgroup:      0,
+					Weektype:      &weekType,
+					LessonType:    ItemTypeLecture,
+					Classroom:     "test",
+				},
 			},
-		},
-		"item for sunday": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Sunday,
-			studentsCount: 0,
-			lessonNumber:  0,
-			subgroup:      0,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "test",
-			err:           ErrInvalidData,
-		},
-		"negative students count": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: -1,
-			lessonNumber:  0,
-			subgroup:      0,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "test",
-			err:           ErrInvalidData,
-		},
-		"negative lesson number": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: 0,
-			lessonNumber:  -1,
-			subgroup:      0,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "test",
-			err:           ErrInvalidData,
-		},
-		"negative subgroup": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: 0,
-			lessonNumber:  0,
-			subgroup:      -1,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "test",
-			err:           ErrInvalidData,
-		},
-		"unknown weektype": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: 0,
-			lessonNumber:  0,
-			subgroup:      0,
-			weektype:      int8(len(weektypeNames) + 1),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "test",
-			err:           ErrInvalidData,
-		},
-		"unknown lesson type": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: 0,
-			lessonNumber:  0,
-			subgroup:      0,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(len(lessonTypeNames) + 1),
-			classroom:     "test",
-			err:           ErrInvalidData,
-		},
-		"empty discipline": {
-			discipline:    "",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: 0,
-			lessonNumber:  0,
-			subgroup:      0,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "test",
-			err:           ErrInvalidData,
-		},
-		"empty classroom": {
-			discipline:    "test",
-			teacherID:     teacherID,
-			weekday:       time.Monday,
-			studentsCount: 0,
-			lessonNumber:  0,
-			subgroup:      0,
-			weektype:      int8(WeekTypeBoth),
-			lessonType:    int8(ItemTypeLecture),
-			classroom:     "",
-			err:           ErrInvalidData,
-		},
-	}
+			"item for sunday": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Sunday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				err: ErrInvalidData,
+			},
+			"negative students count": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: -1,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
 
-	for name, suitcase := range suitcases {
-		t.Run(name, func(t *testing.T) {
-			schedule, err := NewCycledSchedule(uuid.New(), 0, time.Now(), time.Now())
-			if err != nil {
-				t.Fatal(err)
-			}
+				err: ErrInvalidData,
+			},
+			"negative lesson number": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  -1,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				err: ErrInvalidData,
+			},
+			"negative subgroup": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      -1,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				err: ErrInvalidData,
+			},
+			"unknown weektype": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(len(weektypeNames) + 1),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				err: ErrInvalidData,
+			},
+			"unknown lesson type": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(len(lessonTypeNames) + 1),
+					classroom:     "test",
+				},
+				err: ErrInvalidData,
+			},
+			"empty discipline": {
+				input: input{
+					discipline:    "",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				err: ErrInvalidData,
+			},
+			"empty classroom": {
+				input: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "",
+				},
+				err: ErrInvalidData,
+			},
+		}
 
-			err = schedule.Cycled.AddItem(
-				suitcase.discipline,
-				suitcase.teacherID,
-				suitcase.weekday,
-				suitcase.studentsCount,
-				suitcase.lessonNumber,
-				suitcase.subgroup,
-				suitcase.weektype,
-				suitcase.lessonType,
-				suitcase.classroom,
-			)
-
-			if suitcase.err != nil {
-				if !errors.Is(err, suitcase.err) {
-					t.Fatalf("expected error %v, got %v", suitcase.err, err)
+		for name, suitcase := range suitcases {
+			t.Run(name, func(t *testing.T) {
+				schedule, err := NewCycledSchedule(uuid.New(), 0, time.Now(), time.Now())
+				if err != nil {
+					t.Fatal(err)
 				}
 
-				if len(schedule.Cycled.Items) != 0 {
-					t.Fatalf("expected 0 items, got %d", len(schedule.Cycled.Items))
+				err = schedule.Cycled.AddItem(
+					suitcase.discipline,
+					suitcase.teacherID,
+					suitcase.weekday,
+					suitcase.studentsCount,
+					suitcase.lessonNumber,
+					suitcase.subgroup,
+					suitcase.weektype,
+					suitcase.lessonType,
+					suitcase.classroom,
+				)
+
+				if suitcase.err != nil {
+					if !errors.Is(err, suitcase.err) {
+						t.Fatalf("expected error %v, got %v", suitcase.err, err)
+					}
+
+					if len(schedule.Cycled.Items) != 0 {
+						t.Fatalf("expected 0 items, got %d", len(schedule.Cycled.Items))
+					}
+
+					return
 				}
 
-				return
-			}
+				if len(schedule.Cycled.Items) > 1 {
+					t.Fatalf("expected 1 item, got: %d", len(schedule.Cycled.Items))
+				}
 
-			if len(schedule.Cycled.Items) > 1 {
-				t.Fatalf("expected 1 item, got: %d", len(schedule.Cycled.Items))
-			}
+				items, ok := schedule.Cycled.Items[suitcase.result.Weekday]
+				if !ok {
+					t.Fatalf("unexpected empty schedule items on %s", suitcase.result.Weekday.String())
+				}
 
-			items, ok := schedule.Cycled.Items[suitcase.result.Weekday]
-			if !ok {
-				t.Fatalf("unexpected empty schedule items on %s", suitcase.result.Weekday.String())
-			}
+				if len(items) == 0 {
+					t.Fatalf("unexpected empty schedule items on %s", suitcase.result.Weekday.String())
+				}
 
-			if len(items) == 0 {
-				t.Fatalf("unexpected empty schedule items on %s", suitcase.result.Weekday.String())
-			}
+				if len(items) > 1 {
+					t.Fatalf("expected 1 item on %s, got: %d", suitcase.result.Weekday.String(), len(items))
+				}
 
-			if len(items) > 1 {
-				t.Fatalf("expected 1 item on %s, got: %d", suitcase.result.Weekday.String(), len(items))
-			}
+				if !cmpItems(suitcase.result, &items[0]) {
+					t.Errorf("expected item is %+v, got: %+v", *suitcase.result, items[0])
+				}
+			})
+		}
+	})
 
-			if !cmpItems(suitcase.result, &items[0]) {
-				t.Errorf("expected item is %+v, got: %+v", *suitcase.result, items[0])
-			}
-		})
-	}
+	t.Run("item conflicts", func(t *testing.T) {
+		suitcases := map[string]struct {
+			existing    input
+			conflicting input
+		}{
+			"item for even week on both week": {
+				existing: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				conflicting: input{
+					discipline:    "test-1",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+			},
+			"item for odd week on both week": {
+				existing: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				conflicting: input{
+					discipline:    "test-1",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeUneven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+			},
+			"item for both week on even week": {
+				existing: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				conflicting: input{
+					discipline:    "test-1",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+			},
+			"item for both week on odd week": {
+				existing: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeUneven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				conflicting: input{
+					discipline:    "test-1",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeBoth),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+			},
+			"item for subgroup on same week with all group": {
+				existing: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				conflicting: input{
+					discipline:    "test-1",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      1,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+			},
+			"item for subgroup on same week with same subgroup": {
+				existing: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      1,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				conflicting: input{
+					discipline:    "test-1",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      1,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+			},
+			"item for all group on same week with subgroup": {
+				existing: input{
+					discipline:    "test",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      1,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+				conflicting: input{
+					discipline:    "test-1",
+					teacherID:     teacherID,
+					weekday:       time.Monday,
+					studentsCount: 0,
+					lessonNumber:  0,
+					subgroup:      0,
+					weektype:      int8(WeekTypeEven),
+					lessonType:    int8(ItemTypeLecture),
+					classroom:     "test",
+				},
+			},
+		}
+
+		for name, suitcase := range suitcases {
+			t.Run(name, func(t *testing.T) {
+				schedule, err := NewCycledSchedule(uuid.New(), 0, time.Now(), time.Now().AddDate(0, 0, 1))
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				err = schedule.Cycled.AddItem(
+					suitcase.existing.discipline,
+					suitcase.existing.teacherID,
+					suitcase.existing.weekday,
+					suitcase.existing.studentsCount,
+					suitcase.existing.lessonNumber,
+					suitcase.existing.subgroup,
+					suitcase.existing.weektype,
+					suitcase.existing.lessonType,
+					suitcase.existing.classroom,
+				)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+
+				err = schedule.Cycled.AddItem(
+					suitcase.conflicting.discipline,
+					suitcase.conflicting.teacherID,
+					suitcase.conflicting.weekday,
+					suitcase.conflicting.studentsCount,
+					suitcase.conflicting.lessonNumber,
+					suitcase.conflicting.subgroup,
+					suitcase.conflicting.weektype,
+					suitcase.conflicting.lessonType,
+					suitcase.conflicting.classroom,
+				)
+				if !errors.Is(err, ErrItemConflict) {
+					if err == nil {
+						t.Fatalf("expected error is '%s', got: nil", ErrItemConflict)
+					}
+
+					t.Fatalf("expected error is '%s', got: %s", ErrItemConflict, err)
+				}
+			})
+		}
+	})
 }
 
 // func TestCycledSchedule_RemoveItem(t *testing.T) {

@@ -52,8 +52,6 @@ func (h *Handler) InitRouter() *echo.Echo {
 			echo.HeaderOrigin,
 			echo.HeaderContentType,
 			echo.HeaderAccept,
-			echo.HeaderAuthorization,
-			"Refresh-Token",
 		}, // Разрешённые заголовки
 	}))
 
