@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"schedule-generator/internal/application/acl/exporter"
 	"schedule-generator/internal/application/usecases"
@@ -65,19 +68,28 @@ func main() {
 	})
 
 	// Stop services without context handling support
-	go func() {
+	wg.Go(func() {
 		<-ctx.Done()
+		logger.Info("Closing router")
 		if err := router.Close(); err != nil {
 			logger.Warn("API web server closing error.", "error", err)
 		}
+
+		logger.Info("Closing postgres connection")
+		if err := db.Close(); err != nil {
+			logger.Warn("Close postgres connection error", "error", err)
+		}
+	})
+
+	go func() {
+		defer cancel()
+		chSig := make(chan os.Signal, 1)
+		signal.Notify(chSig, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-chSig
+		logger.Info(fmt.Sprintf("OS signal received: %s", sig))
 	}()
 
 	wg.Wait()
-
-	logger.Info("Closing postgres connection")
-	if err := db.Close(); err != nil {
-		logger.Error("Close postgres connection error", "error", err)
-	}
 
 	logger.Info("Service finished")
 }
