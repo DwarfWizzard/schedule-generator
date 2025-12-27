@@ -178,10 +178,12 @@ type AddItemToScheduleInput struct {
 	Discipline    string
 	TeacherID     uuid.UUID
 	StudentsCount int16
-	Weekday       time.Weekday
+	Date          *time.Time
+	Weeknum       *int
+	Weekday       *time.Weekday
+	Weektype      *int8
 	LessonNumber  int8
 	Subgroup      int8
-	Weektype      int8
 	LessonType    int8
 	Classroom     string
 }
@@ -212,14 +214,22 @@ func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uu
 	}
 
 	for i, item := range input {
+		if item.Weekday == nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing weekday"))
+		}
+
+		if item.Weektype == nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing weektype"))
+		}
+
 		err = schedule.Cycled.AddItem(
 			item.Discipline,
 			item.TeacherID,
-			item.Weekday,
+			*item.Weekday,
 			item.StudentsCount,
 			item.LessonNumber,
 			item.Subgroup,
-			item.Weektype,
+			*item.Weektype,
 			item.LessonType,
 			item.Classroom,
 		)
@@ -422,6 +432,99 @@ func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, schedule
 				return execerror.NewExecError(execerror.TypeInvalidInput, err)
 			}
 		}
+	}
+
+	err = repo.SaveSchedule(ctx, schedule)
+	if err != nil {
+		logger.Error("Save schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		logger.Error("Save updated schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+// UpdateItemInSchedule
+func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID uuid.UUID, input AddItemToScheduleInput) error {
+	logger := uc.logger.With("schedule_id", scheduleID)
+
+	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
+	if err != nil {
+		logger.Error("Start transaction error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+	defer rollback(ctx)
+
+	repo := tx.(ScheduleUsecaseRepo)
+
+	schedule, err := repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	switch schedule.Type {
+	case schedules.ScheduleTypeCycled:
+		if input.Weekday == nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing weekday"))
+		}
+
+		if input.Weektype == nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing weektype"))
+		}
+
+		err := schedule.Cycled.RemoveItem(*input.Weekday, input.LessonNumber, input.Subgroup, *input.Weektype)
+		if err != nil {
+			logger.Error("Remove item error", "error", err)
+			return execerror.NewExecError(execerror.TypeInvalidInput, err)
+		}
+
+		err = schedule.Cycled.AddItem(
+			input.Discipline,
+			input.TeacherID,
+			*input.Weekday,
+			input.StudentsCount,
+			input.LessonNumber,
+			input.Subgroup,
+			*input.Weektype,
+			input.LessonType,
+			input.Classroom,
+		)
+	case schedules.ScheduleTypeCalendar:
+		if input.Date == nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing date"))
+		}
+
+		if input.Weeknum == nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("missing weeknum"))
+		}
+
+		err := schedule.Calendar.RemoveItem(*input.Date, input.LessonNumber, input.Subgroup)
+		if err != nil {
+			logger.Error("Remove item error", "error", err)
+			return execerror.NewExecError(execerror.TypeInvalidInput, err)
+		}
+
+		err = schedule.Calendar.AddItem(
+			input.Discipline,
+			input.TeacherID,
+			*input.Date,
+			input.StudentsCount,
+			input.LessonNumber,
+			input.Subgroup,
+			*input.Weeknum,
+			input.LessonType,
+			input.Classroom,
+		)
 	}
 
 	err = repo.SaveSchedule(ctx, schedule)
