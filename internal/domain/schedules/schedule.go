@@ -59,6 +59,7 @@ type CycledSchedule struct {
 	StartDate time.Time
 	EndDate   time.Time
 	Items     map[time.Weekday][]ScheduleItem
+	Practices []Practice
 }
 
 // NewCycledSchedule
@@ -208,6 +209,38 @@ func (s *CycledSchedule) RemoveItem(weekday time.Weekday, lessonNumber, subgroup
 	return nil
 }
 
+// AddPractice
+func (s *CycledSchedule) AddPractice(practiceType int8, startDate, endDate time.Time) error {
+	var argErr error
+
+	pt, err := NewPracticeType(practiceType)
+	if err != nil {
+		argErr = errors.Join(argErr, err)
+	}
+
+	if startDate.After(endDate) {
+		argErr = errors.Join(argErr, errors.New("start date can not be after end date"))
+	}
+
+	if argErr != nil {
+		return errors.Join(ErrInvalidData, argErr)
+	}
+
+	practice := Practice{
+		Type:      pt,
+		StartDate: startDate,
+		EndDate:   endDate,
+	}
+
+	err = s.validatePractice(&practice)
+	if err != nil {
+		return err
+	}
+
+	s.Practices = append(s.Practices, practice)
+	return nil
+}
+
 func (s *CycledSchedule) validateItem(item *ScheduleItem) error {
 	items := s.Items[item.Weekday]
 	if len(items) == 0 {
@@ -230,6 +263,30 @@ func (s *CycledSchedule) validateItem(item *ScheduleItem) error {
 
 		if current.LessonNumber == item.LessonNumber && subgroupConflict && weekConflict {
 			return fmt.Errorf("%w: duplicate lesson for this weekday and subgroup on week %v", ErrItemConflict, current.Weektype)
+		}
+	}
+
+	return nil
+}
+
+func (s *CycledSchedule) validatePractice(practice *Practice) error {
+	if practice.StartDate.Before(s.StartDate) {
+		return fmt.Errorf("practice can not start before schedule")
+	}
+
+	// if practice.EndDate.After(s.EndDate) {
+	// 	return fmt.Errorf("practice can not end before schedule")
+	// }
+
+	if len(s.Practices) == 0 {
+		return nil
+	}
+
+	for _, current := range s.Practices {
+		conflict := practice.StartDate.Compare(current.EndDate) <= 0 && current.StartDate.Compare(practice.EndDate) <= 0 && practice.Type == current.Type
+
+		if conflict {
+			return fmt.Errorf("%w: practice overlap", ErrItemConflict)
 		}
 	}
 
