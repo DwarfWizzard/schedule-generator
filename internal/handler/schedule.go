@@ -27,17 +27,18 @@ type ScheduleUsecase interface {
 }
 
 type ScheduleItem struct {
-	Discipline    string     `json:"discipline"`
-	TeacherID     uuid.UUID  `json:"teacher_id"`
-	Weekday       string     `json:"weekday"`
-	StudentsCount int16      `json:"students_count"`
-	Date          *time.Time `json:"date"`
-	LessonNumber  int8       `json:"lesson_number"`
-	Subgroup      int8       `json:"subgroup"`
-	Weektype      *int8      `json:"weektype"`
-	Weeknum       *int       `json:"weeknum"`
-	LessonType    int8       `json:"lesson_type"`
-	Classroom     string     `json:"classroom"`
+	Discipline        string     `json:"discipline"`
+	TeacherID         uuid.UUID  `json:"teacher_id"`
+	Weekday           string     `json:"weekday"`
+	StudentsCount     int16      `json:"students_count"`
+	Date              *time.Time `json:"date"`
+	LessonNumber      int8       `json:"lesson_number"`
+	Subgroup          int8       `json:"subgroup"`
+	Weektype          *int8      `json:"weektype"`
+	Weeknum           *int       `json:"weeknum"`
+	LessonType        int8       `json:"lesson_type"`
+	CabinetAuditorium string     `json:"cabinet_auditorium"`
+	CabinetBuilding   string     `json:"cabinet_building"`
 }
 
 type Schedule struct {
@@ -146,7 +147,7 @@ type AddScheduleItemRequest struct {
 	Subgroup      int8         `json:"subgroup"`
 	Weektype      int8         `json:"weektype"`
 	LessonType    int8         `json:"lesson_type"`
-	Classroom     string       `json:"classroom"`
+	CabinetID     uuid.UUID    `json:"cabinet_id"`
 }
 
 // AddScheduleItem - POST /v1/schedules/:id/items
@@ -176,7 +177,7 @@ func (h *Handler) AddScheduleItem(c echo.Context) error {
 			Subgroup:      item.Subgroup,
 			Weektype:      item.Weektype,
 			LessonType:    item.LessonType,
-			Classroom:     item.Classroom,
+			CabinetID:     item.CabinetID,
 		}
 	}
 
@@ -295,17 +296,18 @@ func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule
 			}
 
 			items = append(items, ScheduleItem{
-				Discipline:    item.Discipline,
-				TeacherID:     item.TeacherID,
-				Weekday:       item.Weekday.String(),
-				StudentsCount: item.StudentsCount,
-				Date:          item.Date,
-				LessonNumber:  item.LessonNumber,
-				Subgroup:      item.Subgroup,
-				Weektype:      wt,
-				Weeknum:       item.Weeknum,
-				LessonType:    int8(item.LessonType),
-				Classroom:     string(item.Classroom),
+				Discipline:        item.Discipline,
+				TeacherID:         item.TeacherID,
+				Weekday:           item.Weekday.String(),
+				StudentsCount:     item.StudentsCount,
+				Date:              item.Date,
+				LessonNumber:      item.LessonNumber,
+				Subgroup:          item.Subgroup,
+				Weektype:          wt,
+				Weeknum:           item.Weeknum,
+				LessonType:        int8(item.LessonType),
+				CabinetAuditorium: item.Cabinet.Auditorium,
+				CabinetBuilding:   item.Cabinet.Building,
 			})
 		}
 	}

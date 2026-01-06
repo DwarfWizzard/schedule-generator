@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"schedule-generator/internal/domain/schedules"
 	"strconv"
+	"strings"
 )
 
 var cycledCsvHeader = []string{
@@ -136,7 +137,7 @@ func (exp *csvExporter) cycledScheduleItemHandler(ctx context.Context, groupNumb
 		groupNumber,
 		strconv.FormatInt(int64(item.Weekday), 10),
 		strconv.FormatInt(int64(item.LessonNumber), 10),
-		string(item.Classroom),
+		formCabinetAddress(item.Cabinet),
 		weekType,
 		subgroup,
 		teacher.Name,
@@ -181,7 +182,7 @@ func (exp *csvExporter) calendarScheduleItemHandler(ctx context.Context, groupNu
 		strconv.FormatInt(int64(item.StudentsCount), 10),
 		strconv.FormatInt(int64(item.Weekday), 10),
 		strconv.FormatInt(int64(item.LessonNumber), 10),
-		string(item.Classroom),
+		formCabinetAddress(item.Cabinet),
 		weeknum,
 		subgroup,
 		teacher.Name,
@@ -210,4 +211,22 @@ func formLessonType(lessonType schedules.ItemLessonType) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown lesson type %s", lessonType.String())
 	}
+}
+
+func formCabinetAddress(cabinet schedules.Cabinet) string {
+	var b strings.Builder
+
+	var escape bool
+	if len(cabinet.Building) > 0 {
+		b.WriteRune('"')
+		b.WriteString(cabinet.Building + ", ")
+	}
+
+	b.WriteString("ауд. " + cabinet.Auditorium)
+
+	if escape {
+		b.WriteRune('"')
+	}
+
+	return b.String()
 }

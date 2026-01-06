@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"schedule-generator/internal/application/acl/exporter"
+	"schedule-generator/internal/domain/cabinets"
 	edugroups "schedule-generator/internal/domain/edu_groups"
 	"schedule-generator/internal/domain/schedules"
 	"schedule-generator/internal/infrastructure/db"
@@ -22,6 +23,7 @@ import (
 type ScheduleUsecaseRepo interface {
 	schedules.Repository
 	edugroups.Repository
+	cabinets.Repository
 
 	GetScheduleByEduGroupIDAndSemester(ctx context.Context, eduGroupID uuid.UUID, semester int) (*schedules.Schedule, error)
 	MapEduGroupsBySchedules(ctx context.Context, scheduleIDs uuid.UUIDs) (map[uuid.UUID]edugroups.EduGroup, error)
@@ -177,13 +179,13 @@ func (uc *ScheduleUsecase) ListSchedule(ctx context.Context) (ListScheduleOutput
 type AddItemToScheduleInput struct {
 	Discipline    string
 	TeacherID     uuid.UUID
+	CabinetID     uuid.UUID
 	StudentsCount int16
 	Weekday       time.Weekday
 	LessonNumber  int8
 	Subgroup      int8
 	Weektype      int8
 	LessonType    int8
-	Classroom     string
 }
 
 // AddItemToSchedule
@@ -212,6 +214,24 @@ func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uu
 	}
 
 	for i, item := range input {
+		cabinet, err := repo.GetCabinet(ctx, item.CabinetID)
+		if err != nil {
+			logger.Error("Get cabinet error", "error", err)
+			if errors.Is(err, db.ErrorNotFound) {
+				return execerror.NewExecError(execerror.TypeInvalidInput, fmt.Errorf("cabinet %s not found", item.CabinetID))
+			}
+
+			return execerror.NewExecError(execerror.TypeInternal, nil)
+		}
+
+		cabinetValue := schedules.Cabinet{
+			Auditorium: cabinet.Auditorium,
+		}
+
+		if cabinet.Building != nil {
+			cabinetValue.Building = *cabinet.Building
+		}
+
 		err = schedule.Cycled.AddItem(
 			item.Discipline,
 			item.TeacherID,
@@ -221,7 +241,7 @@ func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uu
 			item.Subgroup,
 			item.Weektype,
 			item.LessonType,
-			item.Classroom,
+			cabinetValue,
 		)
 		if err != nil {
 			return execerror.NewExecError(execerror.TypeInvalidInput, err).AddDetails("input_idx", strconv.FormatInt(int64(i), 10))

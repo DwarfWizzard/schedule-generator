@@ -115,7 +115,7 @@ func (s *CycledSchedule) AddItem(
 	subgroup int8,
 	weektype int8,
 	lessonType int8,
-	classroom string,
+	cabinet Cabinet,
 ) error {
 	var argErr error
 
@@ -139,21 +139,12 @@ func (s *CycledSchedule) AddItem(
 		argErr = errors.Join(argErr, errors.New("empty discipline"))
 	}
 
-	if len(classroom) == 0 {
-		argErr = errors.Join(argErr, errors.New("empty classroom"))
-	}
-
 	wt, err := NewWeekType(weektype)
 	if err != nil {
 		argErr = errors.Join(argErr, err)
 	}
 
 	lt, err := NewItemLessonType(lessonType)
-	if err != nil {
-		argErr = errors.Join(argErr, err)
-	}
-
-	cr, err := NewClassroom(classroom)
 	if err != nil {
 		argErr = errors.Join(argErr, err)
 	}
@@ -171,7 +162,7 @@ func (s *CycledSchedule) AddItem(
 		Subgroup:      subgroup,
 		Weektype:      &wt,
 		LessonType:    lt,
-		Classroom:     cr,
+		Cabinet:       cabinet,
 	}
 
 	if vErr := s.validateItem(&item); vErr != nil {
@@ -301,7 +292,7 @@ func (s *CalendarSchedule) AddItem(
 	subgroup int8,
 	weeknum int,
 	lessonType int8,
-	classroom string,
+	cabinet Cabinet,
 ) error {
 	var argErr error
 
@@ -334,15 +325,6 @@ func (s *CalendarSchedule) AddItem(
 		argErr = errors.Join(argErr, err)
 	}
 
-	cr, err := NewClassroom(classroom)
-	if err != nil {
-		argErr = errors.Join(argErr, err)
-	}
-
-	if argErr != nil {
-		return argErr
-	}
-
 	item := ScheduleItem{
 		Discipline:    discipline,
 		TeacherID:     teacherID,
@@ -353,7 +335,11 @@ func (s *CalendarSchedule) AddItem(
 		Subgroup:      subgroup,
 		Weeknum:       &weeknum,
 		LessonType:    lt,
-		Classroom:     cr,
+		Cabinet:       cabinet,
+	}
+
+	if argErr != nil {
+		return argErr
 	}
 
 	if vErr := s.validateItem(&item); vErr != nil {

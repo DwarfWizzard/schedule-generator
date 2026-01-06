@@ -8,20 +8,21 @@ import (
 )
 
 type ScheduleItem struct {
-	ID            int64        `gorm:"column:id;autoIncrement;primaryKey"`
-	ScheduleID    uuid.UUID    `gorm:"column:schedule_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Discipline    string       `gorm:"column:discipline;not null"`
-	TeacherID     uuid.UUID    `gorm:"column:teacher_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
-	Teacher       *Teacher     `gorm:"foreignKey:teacher_id"`
-	Weekday       time.Weekday `gorm:"column:weekday;not null;default:1"`
-	StudentsCount int16        `gorm:"column:students_count;not null;default:0"`
-	Date          *time.Time   `gorm:"column:date"`
-	LessonNumber  int8         `gorm:"column:lesson_number;not null;default:0"`
-	Subgroup      int8         `gorm:"column:subgroup;not null;default:0"`
-	Weektype      *int8        `gorm:"column:weektype"`
-	Weeknum       *int         `gorm:"column:weeknum"`
-	LessonType    int8         `gorm:"column:lesson_type;not null"`
-	Classroom     string       `gorm:"column:classroom;not null"`
+	ID                int64        `gorm:"column:id;autoIncrement;primaryKey"`
+	ScheduleID        uuid.UUID    `gorm:"column:schedule_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Discipline        string       `gorm:"column:discipline;not null"`
+	TeacherID         uuid.UUID    `gorm:"column:teacher_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Teacher           *Teacher     `gorm:"foreignKey:teacher_id"`
+	Weekday           time.Weekday `gorm:"column:weekday;not null;default:1"`
+	StudentsCount     int16        `gorm:"column:students_count;not null;default:0"`
+	Date              *time.Time   `gorm:"column:date"`
+	LessonNumber      int8         `gorm:"column:lesson_number;not null;default:0"`
+	Subgroup          int8         `gorm:"column:subgroup;not null;default:0"`
+	Weektype          *int8        `gorm:"column:weektype"`
+	Weeknum           *int         `gorm:"column:weeknum"`
+	LessonType        int8         `gorm:"column:lesson_type;not null"`
+	CabinetAuditorium string       `gorm:"foreignKey:cabinet_auditorium"`
+	CabinetBuilding   string       `gorm:"foreignKey:cabinet_building"`
 }
 
 type Schedule struct {
@@ -57,17 +58,18 @@ func ScheduleToSchema(model *schedules.Schedule) *Schedule {
 
 	for i, item := range items {
 		si := ScheduleItem{
-			ScheduleID:    model.ID,
-			Discipline:    item.Discipline,
-			TeacherID:     item.TeacherID,
-			Weekday:       item.Weekday,
-			StudentsCount: item.StudentsCount,
-			Date:          item.Date,
-			LessonNumber:  item.LessonNumber,
-			Subgroup:      item.Subgroup,
-			Weeknum:       item.Weeknum,
-			LessonType:    int8(item.LessonType),
-			Classroom:     string(item.Classroom),
+			ScheduleID:        model.ID,
+			Discipline:        item.Discipline,
+			TeacherID:         item.TeacherID,
+			Weekday:           item.Weekday,
+			StudentsCount:     item.StudentsCount,
+			Date:              item.Date,
+			LessonNumber:      item.LessonNumber,
+			Subgroup:          item.Subgroup,
+			Weeknum:           item.Weeknum,
+			LessonType:        int8(item.LessonType),
+			CabinetAuditorium: item.Cabinet.Auditorium,
+			CabinetBuilding:   item.Cabinet.Building,
 		}
 
 		if item.Weektype != nil {
@@ -116,7 +118,10 @@ func ScheduleFromSchema(schema *Schedule) *schedules.Schedule {
 				item.Subgroup,
 				*item.Weektype,
 				item.LessonType,
-				item.Classroom,
+				schedules.Cabinet{
+					Auditorium: item.CabinetAuditorium,
+					Building:   item.CabinetBuilding,
+				},
 			)
 
 			if err != nil {
@@ -143,7 +148,10 @@ func ScheduleFromSchema(schema *Schedule) *schedules.Schedule {
 				item.Subgroup,
 				*item.Weeknum,
 				item.LessonType,
-				item.Classroom,
+				schedules.Cabinet{
+					Auditorium: item.CabinetAuditorium,
+					Building:   item.CabinetBuilding,
+				},
 			)
 
 			if err != nil {
