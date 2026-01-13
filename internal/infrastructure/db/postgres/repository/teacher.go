@@ -49,7 +49,7 @@ func (r *Repository) GetTeacher(ctx context.Context, id uuid.UUID) (*teachers.Te
 // ListTeacher
 func (r *Repository) ListTeacher(ctx context.Context) ([]teachers.Teacher, error) {
 	var list []schema.Teacher
-	err := r.client.WithContext(ctx).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
@@ -69,7 +69,7 @@ func (r *Repository) ListTeacher(ctx context.Context) ([]teachers.Teacher, error
 // ListTeacherByDepartment
 func (r *Repository) ListTeacherByDepartment(ctx context.Context, depID string) ([]teachers.Teacher, error) {
 	var list []schema.Teacher
-	err := r.client.WithContext(ctx).Where("department_id = ?", depID).Find(&list).Error
+	err := r.client.WithContext(ctx).Where("department_id = ?", depID).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
