@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"schedule-generator/internal/infrastructure/db"
 
 	"gorm.io/gorm"
@@ -10,6 +11,7 @@ import (
 
 type Repository struct {
 	client *gorm.DB
+	isTxn  bool
 }
 
 func NewPostgresRepository(client *gorm.DB) *Repository {
@@ -20,6 +22,10 @@ func NewPostgresRepository(client *gorm.DB) *Repository {
 
 // AsTransaction returns repository instance initiated by transaction and tx handling functions
 func (r *Repository) AsTransaction(ctx context.Context, isoLevel db.IsoLevel) (db.TransactionalRepository, db.RollbackTxnFunc, db.CommitTxnFunc, error) {
+	if r.isTxn {
+		return nil, nil, nil, errors.New("repository already transactional")
+	}
+
 	tx := r.client.WithContext(ctx).Begin(&sql.TxOptions{
 		Isolation: isoLevel.ToSQLIsolationLevel(),
 	})
@@ -45,5 +51,8 @@ func (r *Repository) AsTransaction(ctx context.Context, isoLevel db.IsoLevel) (d
 		return nil
 	}
 
-	return NewPostgresRepository(tx), rollback, commit, nil
+	newRepo := NewPostgresRepository(tx)
+	newRepo.isTxn = true
+
+	return newRepo, rollback, commit, nil
 }

@@ -382,6 +382,10 @@ func (s *CalendarSchedule) AddItem(
 		argErr = errors.Join(argErr, err)
 	}
 
+	if argErr != nil {
+		return errors.Join(ErrInvalidData, argErr)
+	}
+
 	item := ScheduleItem{
 		Discipline:    discipline,
 		TeacherID:     teacherID,
@@ -393,10 +397,6 @@ func (s *CalendarSchedule) AddItem(
 		Weeknum:       &weeknum,
 		LessonType:    lt,
 		Cabinet:       cabinet,
-	}
-
-	if argErr != nil {
-		return argErr
 	}
 
 	if vErr := s.validateItem(&item); vErr != nil {

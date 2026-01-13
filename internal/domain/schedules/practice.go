@@ -34,4 +34,3 @@ type Practice struct {
 	StartDate time.Time
 	EndDate   time.Time
 }
-

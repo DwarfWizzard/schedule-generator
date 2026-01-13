@@ -15,6 +15,7 @@ type Handler struct {
 	faculty      FacultyUsecase
 	schedule     ScheduleUsecase
 	teacher      TeacherUsecase
+	cabinet      CabinetUsecase
 	logger       *slog.Logger
 }
 

@@ -29,22 +29,68 @@ func NewCabinetType(t int8) (CabinetType, error) {
 }
 
 func (t CabinetType) String() string {
+	i := int(t)
+	if i < 0 || i >= len(cabinetTypeNames) {
+		return "unknown"
+	}
+
 	return cabinetTypeNames[t]
 }
 
 type CabinetEquipment struct {
 	Furniture         string
 	TechnicalMeans    string
-	СomputerEquipment string
+	ComputerEquipment string
 }
 
 type Cabinet struct {
 	ID                                 uuid.UUID
 	FacultyID                          uuid.UUID
-	Building                           *string
-	Auditorium                         string
 	Type                               CabinetType
-	Appointment                        string
-	Equipment                          CabinetEquipment
+	Auditorium                         string
 	SuitableForPeoplesWithSpecialNeeds bool
+	Building                           *string
+	Appointment                        *string
+	Equipment                          *CabinetEquipment
+}
+
+func (c *Cabinet) Validate() error {
+	var argErr error
+
+	if len(c.Auditorium) == 0 {
+		argErr = errors.Join(argErr, errors.New("invalid auditorium value"))
+	}
+
+	if c.Building != nil && len(*c.Building) == 0 {
+		argErr = errors.Join(argErr, errors.New("invalid building value"))
+	}
+
+	if c.Appointment != nil && len(*c.Appointment) == 0 {
+		argErr = errors.Join(argErr, errors.New("invalid appointment value"))
+	}
+
+	if argErr != nil {
+		return argErr
+	}
+
+	return nil
+}
+
+func NewCabinet(facultyID uuid.UUID, cabinetType CabinetType, auditorium string, suitableForPeoplesWithSpecialNeeds bool, building, appointment *string, equipment *CabinetEquipment) (*Cabinet, error) {
+	cab := Cabinet{
+		ID:                                 uuid.New(),
+		FacultyID:                          facultyID,
+		Type:                               cabinetType,
+		Auditorium:                         auditorium,
+		SuitableForPeoplesWithSpecialNeeds: suitableForPeoplesWithSpecialNeeds,
+		Building:                           building,
+		Appointment:                        appointment,
+		Equipment:                          equipment,
+	}
+
+	if err := cab.Validate(); err != nil {
+		return nil, err
+	}
+
+	return &cab, nil
 }

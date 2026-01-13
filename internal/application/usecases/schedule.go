@@ -492,6 +492,24 @@ func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID 
 		return execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	cabinet, err := repo.GetCabinet(ctx, input.CabinetID)
+	if err != nil {
+		logger.Error("Get cabinet error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, fmt.Errorf("cabinet %s not found", input.CabinetID))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	cabinetValue := schedules.Cabinet{
+		Auditorium: cabinet.Auditorium,
+	}
+
+	if cabinet.Building != nil {
+		cabinetValue.Building = *cabinet.Building
+	}
+
 	switch schedule.Type {
 	case schedules.ScheduleTypeCycled:
 		if input.Weekday == nil {
@@ -517,7 +535,7 @@ func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID 
 			input.Subgroup,
 			*input.Weektype,
 			input.LessonType,
-			input.Classroom,
+			cabinetValue,
 		)
 	case schedules.ScheduleTypeCalendar:
 		if input.Date == nil {
@@ -543,7 +561,7 @@ func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID 
 			input.Subgroup,
 			*input.Weeknum,
 			input.LessonType,
-			input.Classroom,
+			cabinetValue,
 		)
 	}
 

@@ -172,10 +172,10 @@ func (h *Handler) AddScheduleItem(c echo.Context) error {
 			Discipline:    item.Discipline,
 			TeacherID:     item.TeacherID,
 			StudentsCount: item.StudentsCount,
-			Weekday:       item.Weekday,
+			Weekday:       &item.Weekday,
 			LessonNumber:  item.LessonNumber,
 			Subgroup:      item.Subgroup,
-			Weektype:      item.Weektype,
+			Weektype:      &item.Weektype,
 			LessonType:    item.LessonType,
 			CabinetID:     item.CabinetID,
 		}
