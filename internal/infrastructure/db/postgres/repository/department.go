@@ -49,27 +49,7 @@ func (r *Repository) GetDepartment(ctx context.Context, id uuid.UUID) (*departme
 // ListDepartment
 func (r *Repository) ListDepartment(ctx context.Context) ([]departments.Department, error) {
 	var list []schema.Department
-	err := r.client.WithContext(ctx).Find(&list).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, db.ErrorNotFound
-		}
-
-		return nil, err
-	}
-
-	result := make([]departments.Department, len(list))
-	for i, v := range list {
-		result[i] = *schema.DepartmentFromSchema(&v)
-	}
-
-	return result, nil
-}
-
-// ListDepartmentByIDs
-func (r *Repository) ListDepartmentByIDs(ctx context.Context, ids uuid.UUIDs) ([]departments.Department, error) {
-	var list []schema.Department
-	err := r.client.WithContext(ctx).Where("id IN ?", ids).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

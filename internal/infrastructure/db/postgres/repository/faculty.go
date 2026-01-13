@@ -45,7 +45,7 @@ func (r *Repository) GetFaculty(ctx context.Context, id uuid.UUID) (*faculties.F
 // ListFaculty
 func (r *Repository) ListFaculty(ctx context.Context) ([]faculties.Faculty, error) {
 	var list []schema.Faculty
-	err := r.client.WithContext(ctx).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

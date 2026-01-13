@@ -64,7 +64,7 @@ func (r *Repository) GetEduGroupByNumber(ctx context.Context, number string) (*e
 // ListEduGroup
 func (r *Repository) ListEduGroup(ctx context.Context) ([]edugroups.EduGroup, error) {
 	var list []schema.EduGroup
-	err := r.client.WithContext(ctx).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("number, admission_year ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

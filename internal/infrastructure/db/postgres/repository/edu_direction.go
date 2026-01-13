@@ -49,27 +49,7 @@ func (r *Repository) GetEduDirection(ctx context.Context, id uuid.UUID) (*edudir
 // ListEduDirection
 func (r *Repository) ListEduDirection(ctx context.Context) ([]edudirections.EduDirection, error) {
 	var list []schema.EduDirection
-	err := r.client.WithContext(ctx).Find(&list).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, db.ErrorNotFound
-		}
-
-		return nil, err
-	}
-
-	result := make([]edudirections.EduDirection, len(list))
-	for i, v := range list {
-		result[i] = *schema.EduDirectionFromSchema(&v)
-	}
-
-	return result, nil
-}
-
-// ListEduDirectionByIDs
-func (r *Repository) ListEduDirectionByIDs(ctx context.Context, ids uuid.UUIDs) ([]edudirections.EduDirection, error) {
-	var list []schema.EduDirection
-	err := r.client.WithContext(ctx).Where("id IN ?", ids).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

@@ -228,16 +228,16 @@ func (s *CycledSchedule) validateItem(item *ScheduleItem) error {
 	}
 
 	for _, current := range items {
-		weekConflict := *current.Weektype == *item.Weektype ||
-			*current.Weektype == WeekTypeBoth ||
-			*item.Weektype == WeekTypeBoth
-
 		subgroupConflict :=
 			current.Subgroup == item.Subgroup ||
 				current.Subgroup == 0 ||
 				item.Subgroup == 0
 
-		if current.LessonNumber == item.LessonNumber && subgroupConflict && weekConflict {
+		conflict := (*current.Weektype == *item.Weektype && subgroupConflict) ||
+			(*current.Weektype == WeekTypeBoth && (*item.Weektype != WeekTypeBoth || subgroupConflict)) ||
+			(*item.Weektype == WeekTypeBoth && (*current.Weektype != WeekTypeBoth || subgroupConflict))
+
+		if current.LessonNumber == item.LessonNumber && conflict {
 			return fmt.Errorf("%w: duplicate lesson for this weekday and subgroup on week %v", ErrItemConflict, current.Weektype)
 		}
 	}

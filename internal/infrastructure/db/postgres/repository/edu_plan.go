@@ -49,7 +49,7 @@ func (r *Repository) GetEduPlan(ctx context.Context, id uuid.UUID) (*eduplans.Ed
 // ListEduPlan
 func (r *Repository) ListEduPlan(ctx context.Context) ([]eduplans.EduPlan, error) {
 	var list []schema.EduPlan
-	err := r.client.WithContext(ctx).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("direction_id, year ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

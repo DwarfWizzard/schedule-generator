@@ -12,6 +12,7 @@ type Teacher struct {
 	Name         string      `gorm:"column:name;not null"`
 	Position     string      `gorm:"column:position;not null"`
 	Degree       string      `gorm:"column:degree;not null"`
+	Title        string      `gorm:"column:title;not null"`
 	DepartmentID uuid.UUID   `gorm:"column:department_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	Department   *Department `gorm:"foreignKey:department_id"`
 }
