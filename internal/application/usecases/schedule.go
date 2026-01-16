@@ -13,6 +13,7 @@ import (
 	"schedule-generator/internal/application/acl/exporter"
 	edugroups "schedule-generator/internal/domain/edu_groups"
 	"schedule-generator/internal/domain/schedules"
+	"schedule-generator/internal/domain/teachers"
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
 
@@ -25,6 +26,7 @@ type ScheduleUsecaseRepo interface {
 
 	GetScheduleByEduGroupIDAndSemester(ctx context.Context, eduGroupID uuid.UUID, semester int) (*schedules.Schedule, error)
 	MapEduGroupsBySchedules(ctx context.Context, scheduleIDs uuid.UUIDs) (map[uuid.UUID]edugroups.EduGroup, error)
+	MapTeacherByIDs(ctx context.Context, teacherIDs uuid.UUIDs) (map[uuid.UUID]teachers.Teacher, error)
 
 	db.TransactionalRepository
 }
@@ -43,6 +45,11 @@ func NewScheduleUsecase(repo ScheduleUsecaseRepo, exporter exporter.Factory, log
 	}
 }
 
+type ScheduleItemDTO struct {
+	schedules.ScheduleItem
+	TeacherName string
+}
+
 type ScheduleDTO struct {
 	ID         uuid.UUID
 	EduGroupID uuid.UUID
@@ -50,7 +57,7 @@ type ScheduleDTO struct {
 	Type       schedules.ScheduleType
 	StartDate  *time.Time
 	EndDate    *time.Time
-	Items      []schedules.ScheduleItem
+	Items      []ScheduleItemDTO
 }
 
 type CreateScheduleInput struct {
@@ -103,8 +110,10 @@ func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateSched
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	dto, _ := scheduleToCycledScheduleDTO(schedule, nil, false)
+
 	return &CreateScheduleOutput{
-		ScheduleDTO:    scheduleToCycledScheduleDTO(schedule, false),
+		ScheduleDTO:    dto,
 		EduGroupNumber: group.Number,
 	}, nil
 }
@@ -134,7 +143,30 @@ func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	return &GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(schedule, true), EduGroupNumber: group.Number}, nil
+	var teacherIDs uuid.UUIDs
+	m := make(map[uuid.UUID]struct{})
+
+	for _, item := range schedule.ListItem() {
+		if _, ok := m[item.TeacherID]; ok {
+			continue
+		}
+
+		teacherIDs = append(teacherIDs, item.TeacherID)
+	}
+
+	teachersMap, err := uc.repo.MapTeacherByIDs(ctx, teacherIDs)
+	if err != nil {
+		logger.Error("Get teachers map error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	dto, err := scheduleToCycledScheduleDTO(schedule, teachersMap, true)
+	if err != nil {
+		logger.Error("Create schedule dto error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return &GetScheduleOutput{ScheduleDTO: dto, EduGroupNumber: group.Number}, nil
 }
 
 type ListScheduleOutput = []GetScheduleOutput
@@ -168,7 +200,9 @@ func (uc *ScheduleUsecase) ListSchedule(ctx context.Context) (ListScheduleOutput
 			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 		}
 
-		result[idx] = GetScheduleOutput{ScheduleDTO: scheduleToCycledScheduleDTO(&schedule, true), EduGroupNumber: group.Number}
+		dto, _ := scheduleToCycledScheduleDTO(&schedule, nil, false)
+
+		result[idx] = GetScheduleOutput{ScheduleDTO: dto, EduGroupNumber: group.Number}
 	}
 
 	return result, nil
@@ -452,11 +486,21 @@ func (uc *ScheduleUsecase) DeleteSchedule(ctx context.Context, scheduleID uuid.U
 	return nil
 }
 
-func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, withItems bool) ScheduleDTO {
-	var items []schedules.ScheduleItem
+func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, teachersMap map[uuid.UUID]teachers.Teacher, withItems bool) (ScheduleDTO, error) {
+	var items []ScheduleItemDTO
 
 	if withItems {
-		items = schedule.Cycled.ListItem()
+		for _, item := range schedule.Cycled.ListItem() {
+			t, ok := teachersMap[item.TeacherID]
+			if !ok {
+				return ScheduleDTO{}, fmt.Errorf("teacher with id %s for item %s not found", item.TeacherID, item.Discipline)
+			}
+
+			items = append(items, ScheduleItemDTO{
+				ScheduleItem: item,
+				TeacherName:  t.Name,
+			})
+		}
 	}
 
 	dto := ScheduleDTO{
@@ -471,5 +515,5 @@ func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, withItems bool) S
 		dto.EndDate = &schedule.Cycled.EndDate
 	}
 
-	return dto
+	return dto, nil
 }

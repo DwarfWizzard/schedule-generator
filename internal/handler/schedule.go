@@ -29,6 +29,7 @@ type ScheduleUsecase interface {
 type ScheduleItem struct {
 	Discipline    string     `json:"discipline"`
 	TeacherID     uuid.UUID  `json:"teacher_id"`
+	TeacherName   string     `json:"teacher_name"`
 	Weekday       string     `json:"weekday"`
 	StudentsCount int16      `json:"students_count"`
 	Date          *time.Time `json:"date"`
@@ -297,6 +298,7 @@ func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule
 			items = append(items, ScheduleItem{
 				Discipline:    item.Discipline,
 				TeacherID:     item.TeacherID,
+				TeacherName:   item.TeacherName,
 				Weekday:       item.Weekday.String(),
 				StudentsCount: item.StudentsCount,
 				Date:          item.Date,

@@ -86,6 +86,22 @@ func (r *Repository) ListTeacherByDepartment(ctx context.Context, depID string) 
 	return result, nil
 }
 
+// MapTeachersByIDs
+func (r *Repository) MapTeacherByIDs(ctx context.Context, teacherIDs uuid.UUIDs) (map[uuid.UUID]teachers.Teacher, error) {
+	var list []schema.Teacher
+	err := r.client.WithContext(ctx).Where("id IN ?", teacherIDs).Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]teachers.Teacher, len(list))
+	for _, v := range list {
+		result[v.ID] = *schema.TeacherFromSchema(&v)
+	}
+
+	return result, nil
+}
+
 // DeleteTeacher
 func (r *Repository) DeleteTeacher(ctx context.Context, id uuid.UUID) error {
 	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.Teacher{}).Error
