@@ -67,7 +67,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 		subgroup      int8
 		weektype      int8
 		lessonType    int8
-		classroom     string
+		cabinet       Cabinet
 	}
 
 	t.Run("invalid inputs", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				result: &ScheduleItem{
 					Discipline:    "test",
@@ -97,7 +97,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					Subgroup:      0,
 					Weektype:      &weekType,
 					LessonType:    ItemTypeLecture,
-					Classroom:     "test",
+					Cabinet:       Cabinet{},
 				},
 			},
 			"item for sunday": {
@@ -110,7 +110,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				err: ErrInvalidData,
 			},
@@ -124,7 +124,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 
 				err: ErrInvalidData,
@@ -139,7 +139,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				err: ErrInvalidData,
 			},
@@ -153,7 +153,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      -1,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				err: ErrInvalidData,
 			},
@@ -167,7 +167,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(len(weektypeNames) + 1),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				err: ErrInvalidData,
 			},
@@ -181,7 +181,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(len(lessonTypeNames) + 1),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				err: ErrInvalidData,
 			},
@@ -195,21 +195,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
-				},
-				err: ErrInvalidData,
-			},
-			"empty classroom": {
-				input: input{
-					discipline:    "test",
-					teacherID:     teacherID,
-					weekday:       time.Monday,
-					studentsCount: 0,
-					lessonNumber:  0,
-					subgroup:      0,
-					weektype:      int8(WeekTypeBoth),
-					lessonType:    int8(ItemTypeLecture),
-					classroom:     "",
+					cabinet:       Cabinet{},
 				},
 				err: ErrInvalidData,
 			},
@@ -231,7 +217,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					suitcase.subgroup,
 					suitcase.weektype,
 					suitcase.lessonType,
-					suitcase.classroom,
+					suitcase.cabinet,
 				)
 
 				if suitcase.err != nil {
@@ -285,7 +271,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -296,7 +282,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for odd week on both week": {
@@ -309,7 +295,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -320,7 +306,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeUneven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for both week on even week": {
@@ -333,7 +319,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -344,7 +330,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for both week on odd week": {
@@ -357,7 +343,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeUneven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -368,7 +354,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for both week on even week and different subgroups": {
@@ -381,7 +367,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      1,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -392,7 +378,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      2,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for both week on odd week and different subgroups": {
@@ -405,7 +391,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      1,
 					weektype:      int8(WeekTypeUneven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -416,7 +402,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      2,
 					weektype:      int8(WeekTypeBoth),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for subgroup on same week with all group": {
@@ -429,7 +415,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -440,7 +426,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      1,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for subgroup on same week with same subgroup": {
@@ -453,7 +439,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      1,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -464,7 +450,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      1,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 			"item for all group on same week with subgroup": {
@@ -477,7 +463,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      1,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 				conflicting: input{
 					discipline:    "test-1",
@@ -488,7 +474,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					subgroup:      0,
 					weektype:      int8(WeekTypeEven),
 					lessonType:    int8(ItemTypeLecture),
-					classroom:     "test",
+					cabinet:       Cabinet{},
 				},
 			},
 		}
@@ -509,7 +495,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					suitcase.existing.subgroup,
 					suitcase.existing.weektype,
 					suitcase.existing.lessonType,
-					suitcase.existing.classroom,
+					suitcase.existing.cabinet,
 				)
 				if err != nil {
 					t.Fatalf("unexpected error: %s", err)
@@ -524,7 +510,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 					suitcase.conflicting.subgroup,
 					suitcase.conflicting.weektype,
 					suitcase.conflicting.lessonType,
-					suitcase.conflicting.classroom,
+					suitcase.conflicting.cabinet,
 				)
 				if !errors.Is(err, ErrItemConflict) {
 					if err == nil {
@@ -566,7 +552,7 @@ func cmpItems(i1, i2 *ScheduleItem) bool {
 		i1.LessonNumber == i2.LessonNumber &&
 		i1.Subgroup == i2.Subgroup &&
 		i1.LessonType == i2.LessonType &&
-		i1.Classroom == i2.Classroom &&
+		i1.Cabinet == i2.Cabinet &&
 		(i1.Date == nil && i2.Date == nil || (i1.Date.Equal(*i2.Date))) &&
 		(i1.Weektype == nil && i2.Weektype == nil || (*i1.Weektype == *i2.Weektype)) &&
 		(i1.Weeknum == nil && i2.Weeknum == nil || (*i1.Weeknum == *i2.Weeknum))

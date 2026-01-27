@@ -136,7 +136,7 @@ func (exp *csvExporter) cycledScheduleItemHandler(ctx context.Context, groupNumb
 		groupNumber,
 		strconv.FormatInt(int64(item.Weekday), 10),
 		strconv.FormatInt(int64(item.LessonNumber), 10),
-		string(item.Classroom),
+		formCabinetAddress(item.Cabinet),
 		weekType,
 		subgroup,
 		teacher.Name,
@@ -181,7 +181,7 @@ func (exp *csvExporter) calendarScheduleItemHandler(ctx context.Context, groupNu
 		strconv.FormatInt(int64(item.StudentsCount), 10),
 		strconv.FormatInt(int64(item.Weekday), 10),
 		strconv.FormatInt(int64(item.LessonNumber), 10),
-		string(item.Classroom),
+		formCabinetAddress(item.Cabinet),
 		weeknum,
 		subgroup,
 		teacher.Name,
@@ -210,4 +210,8 @@ func formLessonType(lessonType schedules.ItemLessonType) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown lesson type %s", lessonType.String())
 	}
+}
+
+func formCabinetAddress(cabinet schedules.Cabinet) string {
+	return fmt.Sprintf("%s-%s", cabinet.Building, cabinet.Auditorium)
 }

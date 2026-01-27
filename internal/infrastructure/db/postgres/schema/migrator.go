@@ -38,6 +38,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		&EduPlan{},
 		&Schedule{},
 		&ScheduleItem{},
+		&Cabinet{},
 	)
 
 	if err != nil {

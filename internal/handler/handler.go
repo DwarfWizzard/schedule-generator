@@ -15,6 +15,7 @@ type Handler struct {
 	faculty      FacultyUsecase
 	schedule     ScheduleUsecase
 	teacher      TeacherUsecase
+	cabinet      CabinetUsecase
 	logger       *slog.Logger
 }
 
@@ -26,6 +27,7 @@ func NewHandler(
 	faculty FacultyUsecase,
 	schedule ScheduleUsecase,
 	teacher TeacherUsecase,
+	cabinet CabinetUsecase,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
@@ -36,6 +38,7 @@ func NewHandler(
 		faculty:      faculty,
 		teacher:      teacher,
 		schedule:     schedule,
+		cabinet:      cabinet,
 		logger:       logger,
 	}
 }
@@ -113,8 +116,18 @@ func (h *Handler) InitRouter() *echo.Echo {
 		schedules.GET("/:id", h.GetSchedule)
 		schedules.DELETE("/:id", h.DeleteSchedule)
 		schedules.GET("/:id/export", h.ExportSchedule)
-		schedules.PUT("/:id/items", h.AddScheduleItem)
+		schedules.POST("/:id/items", h.AddScheduleItem)
+		schedules.PUT("/:id/items", h.UpdateScheduleItem)
 		schedules.DELETE("/:id/items", h.RemoveScheduleItem)
+	}
+
+	cabinets := api.Group("/cabinets")
+	{
+		cabinets.POST("", h.CreateCabinet)
+		cabinets.GET("", h.ListCabinet)
+		cabinets.GET("/:id", h.GetCabinet)
+		cabinets.PUT("/:id", h.UpdateCabinet)
+		cabinets.DELETE("/:id", h.DeleteCabinet)
 	}
 
 	return router

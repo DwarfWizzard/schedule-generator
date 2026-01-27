@@ -63,11 +63,9 @@ func NewItemLessonType(t int8) (ItemLessonType, error) {
 	return ItemLessonType(t), nil
 }
 
-type Classroom string
-
-func NewClassroom(classroom string) (Classroom, error) {
-	//TODO: add invariants
-	return Classroom(classroom), nil
+type Cabinet struct {
+	Auditorium string
+	Building   string
 }
 
 type ScheduleItem struct {
@@ -81,5 +79,5 @@ type ScheduleItem struct {
 	Weektype      *Weektype
 	Weeknum       *int
 	LessonType    ItemLessonType
-	Classroom     Classroom
+	Cabinet       Cabinet
 }

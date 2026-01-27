@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"log/slog"
+	"schedule-generator/internal/domain/cabinets"
 	"schedule-generator/internal/domain/departments"
 	edugroups "schedule-generator/internal/domain/edu_groups"
 	"schedule-generator/internal/domain/teachers"
@@ -11,6 +12,7 @@ type ExporterRepository interface {
 	teachers.Repository
 	edugroups.Repository
 	departments.Repository
+	cabinets.Repository
 }
 
 type exporterFactory struct {
