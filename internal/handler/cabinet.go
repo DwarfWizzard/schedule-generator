@@ -29,10 +29,10 @@ type Cabinet struct {
 	ID                                 uuid.UUID         `json:"id"`
 	FacultyID                          uuid.UUID         `json:"faculty_id"`
 	FacultyName                        string            `json:"faculty_name"`
-	Type                               string            `json:"type"`
+	Type                               int8              `json:"type"`
+	Building                           string            `json:"building"`
 	Auditorium                         string            `json:"auditorium"`
 	SuitableForPeoplesWithSpecialNeeds bool              `json:"suitable_for_peoples_with_special_needs"`
-	Building                           *string           `json:"building"`
 	Appointment                        *string           `json:"appointment"`
 	Equipment                          *CabinetEquipment `json:"equipment"`
 }
@@ -40,9 +40,9 @@ type Cabinet struct {
 type CreateCabinetRequest struct {
 	FacultyID                          uuid.UUID         `json:"faculty_id"`
 	CabinetType                        int8              `json:"cabinet_type"`
+	Building                           string            `json:"building"`
 	Auditorium                         string            `json:"auditorium"`
 	SuitableForPeoplesWithSpecialNeeds bool              `json:"suitable_for_peoples_with_special_needs"`
-	Building                           *string           `json:"building"`
 	Appointment                        *string           `json:"appointment"`
 	Equipment                          *CabinetEquipment `json:"equipment"`
 }
@@ -120,12 +120,12 @@ func (h *Handler) ListCabinet(c echo.Context) error {
 }
 
 type UpdateCabinetRequest struct {
-	FacultyID                          *uuid.UUID        `json:"faculty_id"`
-	FacultyName                        *string           `json:"faculty_name"`
-	Type                               *string           `json:"type"`
+	FacultyID                          *uuid.UUID `json:"faculty_id"`
+	CabinetType                        *int8
+	Type                               *int8             `json:"type"`
+	Building                           *string           `json:"building"`
 	Auditorium                         *string           `json:"auditorium"`
 	SuitableForPeoplesWithSpecialNeeds *bool             `json:"suitable_for_peoples_with_special_needs"`
-	Building                           *string           `json:"building"`
 	Appointment                        *string           `json:"appointment"`
 	Equipment                          *CabinetEquipment `json:"equipment"`
 }
@@ -145,10 +145,24 @@ func (h *Handler) UpdateCabinet(c echo.Context) error {
 		return ErrNotParsable
 	}
 
+	var equipment *usecases.Equipment
+	if rq.Equipment != nil {
+		equipment = &usecases.Equipment{
+			Furniture:         rq.Equipment.Furniture,
+			TechnicalMeans:    rq.Equipment.TechnicalMeans,
+			СomputerEquipment: rq.Equipment.ComputerEquipment,
+		}
+	}
+
 	out, err := h.cabinet.UpdateCabinet(ctx, usecases.UpdateCabinetInput{
-		CabinetID:  cabinetID,
-		ExternalID: rq.ExternalID,
-		Name:       rq.Name,
+		CabinetID:                          cabinetID,
+		FacultyID:                          rq.FacultyID,
+		CabinetType:                        rq.CabinetType,
+		Building:                           rq.Building,
+		Auditorium:                         rq.Auditorium,
+		SuitableForPeoplesWithSpecialNeeds: rq.SuitableForPeoplesWithSpecialNeeds,
+		Appointment:                        rq.Appointment,
+		Equipment:                          equipment,
 	})
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
@@ -190,7 +204,7 @@ func cabinetToView(model *cabinets.Cabinet, facultyName string) Cabinet {
 		ID:                                 model.ID,
 		FacultyID:                          model.FacultyID,
 		FacultyName:                        facultyName,
-		Type:                               model.Type.String(),
+		Type:                               int8(model.Type),
 		Auditorium:                         model.Auditorium,
 		SuitableForPeoplesWithSpecialNeeds: model.SuitableForPeoplesWithSpecialNeeds,
 		Building:                           model.Building,

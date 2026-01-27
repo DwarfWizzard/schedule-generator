@@ -42,9 +42,9 @@ type Equipment struct {
 type CreateCabinetInput struct {
 	FacultyID                          uuid.UUID
 	CabinetType                        int8
+	Building                           string
 	Auditorium                         string
 	SuitableForPeoplesWithSpecialNeeds bool
-	Building                           *string
 	Appointment                        *string
 	Equipment                          *Equipment
 }
@@ -181,9 +181,9 @@ type UpdateCabinetInput struct {
 	CabinetID                          uuid.UUID
 	FacultyID                          *uuid.UUID
 	CabinetType                        *int8
+	Building                           *string
 	Auditorium                         *string
 	SuitableForPeoplesWithSpecialNeeds *bool
-	Building                           *string
 	Appointment                        *string
 	Equipment                          *Equipment
 }
@@ -230,6 +230,10 @@ func (uc *CabinetUsecase) UpdateCabinet(ctx context.Context, input UpdateCabinet
 		cabinet.Type = cabinetType
 	}
 
+	if input.Building != nil {
+		cabinet.Building = *input.Building
+	}
+
 	if input.Auditorium != nil {
 		cabinet.Auditorium = *input.Auditorium
 	}
@@ -237,15 +241,6 @@ func (uc *CabinetUsecase) UpdateCabinet(ctx context.Context, input UpdateCabinet
 	if input.SuitableForPeoplesWithSpecialNeeds != nil {
 		cabinet.SuitableForPeoplesWithSpecialNeeds = *input.SuitableForPeoplesWithSpecialNeeds
 	}
-
-	if input.Building != nil {
-		if len(*input.Building) == 0 {
-			cabinet.Building = nil
-		}
-
-		cabinet.Building = input.Building
-	}
-
 	if input.Appointment != nil {
 		if len(*input.Appointment) == 0 {
 			cabinet.Appointment = nil
@@ -271,7 +266,7 @@ func (uc *CabinetUsecase) UpdateCabinet(ctx context.Context, input UpdateCabinet
 		logger.Error("Save edu cabinet error", "error", err)
 
 		if errors.Is(err, db.ErrorUniqueViolation) {
-			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("cabinet with provided external id already exists"))
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, fmt.Errorf("cabinet '%s' in building '%s' already exists", cabinet.Auditorium, cabinet.Building))
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)

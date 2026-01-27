@@ -30,13 +30,13 @@ func TeacherToSchema(model *teachers.Teacher) *Teacher {
 }
 
 // TeacherFromSchema
-func TeacherFromSchema(scheme *Teacher) *teachers.Teacher {
+func TeacherFromSchema(schema *Teacher) *teachers.Teacher {
 	return &teachers.Teacher{
-		ID:           scheme.ID,
-		ExternalID:   scheme.ExternalID,
-		Name:         scheme.Name,
-		Position:     scheme.Position,
-		Degree:       scheme.Degree,
-		DepartmentID: scheme.DepartmentID,
+		ID:           schema.ID,
+		ExternalID:   schema.ExternalID,
+		Name:         schema.Name,
+		Position:     schema.Position,
+		Degree:       schema.Degree,
+		DepartmentID: schema.DepartmentID,
 	}
 }

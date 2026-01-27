@@ -53,6 +53,7 @@ func main() {
 		usecases.NewFacultyUsecase(repo, logger),
 		usecases.NewScheduleUsecase(repo, exp, logger),
 		usecases.NewTeacherUsecase(repo, logger),
+		usecases.NewCabinetUsecase(repo, logger),
 		logger,
 	)
 

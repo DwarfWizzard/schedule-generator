@@ -47,9 +47,9 @@ type Cabinet struct {
 	ID                                 uuid.UUID
 	FacultyID                          uuid.UUID
 	Type                               CabinetType
+	Building                           string
 	Auditorium                         string
 	SuitableForPeoplesWithSpecialNeeds bool
-	Building                           *string
 	Appointment                        *string
 	Equipment                          *CabinetEquipment
 }
@@ -61,7 +61,7 @@ func (c *Cabinet) Validate() error {
 		argErr = errors.Join(argErr, errors.New("invalid auditorium value"))
 	}
 
-	if c.Building != nil && len(*c.Building) == 0 {
+	if len(c.Building) == 0 {
 		argErr = errors.Join(argErr, errors.New("invalid building value"))
 	}
 
@@ -76,7 +76,7 @@ func (c *Cabinet) Validate() error {
 	return nil
 }
 
-func NewCabinet(facultyID uuid.UUID, cabinetType CabinetType, auditorium string, suitableForPeoplesWithSpecialNeeds bool, building, appointment *string, equipment *CabinetEquipment) (*Cabinet, error) {
+func NewCabinet(facultyID uuid.UUID, cabinetType CabinetType, auditorium string, suitableForPeoplesWithSpecialNeeds bool, building string, appointment *string, equipment *CabinetEquipment) (*Cabinet, error) {
 	cab := Cabinet{
 		ID:                                 uuid.New(),
 		FacultyID:                          facultyID,

@@ -45,7 +45,7 @@ func (r *Repository) GetFaculty(ctx context.Context, id uuid.UUID) (*faculties.F
 // ListFaculty
 func (r *Repository) ListFaculty(ctx context.Context) ([]faculties.Faculty, error) {
 	var list []schema.Faculty
-	err := r.client.WithContext(ctx).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
@@ -78,6 +78,27 @@ func (r *Repository) MapFacultiesByDepartments(ctx context.Context, departmentID
 		}
 
 		result[depSchema.FacultyID] = *schema.FacultyFromSchema(depSchema.Faculty)
+	}
+
+	return result, nil
+}
+
+// MapFacultiesByDepartments
+func (r *Repository) MapFacultiesByCabinets(ctx context.Context, cabinetIDs uuid.UUIDs) (map[uuid.UUID]faculties.Faculty, error) {
+	var cabinetList []schema.Cabinet
+
+	err := r.client.WithContext(ctx).Preload("Faculty").Find(&cabinetList, cabinetIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]faculties.Faculty)
+	for _, cabinetSchema := range cabinetList {
+		if cabinetSchema.Faculty == nil {
+			continue
+		}
+
+		result[cabinetSchema.FacultyID] = *schema.FacultyFromSchema(cabinetSchema.Faculty)
 	}
 
 	return result, nil

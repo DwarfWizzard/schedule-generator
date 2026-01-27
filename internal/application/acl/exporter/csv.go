@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"schedule-generator/internal/domain/schedules"
 	"strconv"
-	"strings"
 )
 
 var cycledCsvHeader = []string{
@@ -214,19 +213,5 @@ func formLessonType(lessonType schedules.ItemLessonType) (string, error) {
 }
 
 func formCabinetAddress(cabinet schedules.Cabinet) string {
-	var b strings.Builder
-
-	var escape bool
-	if len(cabinet.Building) > 0 {
-		b.WriteRune('"')
-		b.WriteString(cabinet.Building + ", ")
-	}
-
-	b.WriteString("ауд. " + cabinet.Auditorium)
-
-	if escape {
-		b.WriteRune('"')
-	}
-
-	return b.String()
+	return fmt.Sprintf("%s-%s", cabinet.Building, cabinet.Auditorium)
 }

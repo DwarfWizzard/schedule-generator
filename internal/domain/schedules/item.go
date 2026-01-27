@@ -10,14 +10,14 @@ import (
 type Weektype int8
 
 const (
-	WeekTypeEven Weektype = iota
-	WeekTypeUneven
+	WeekTypeUneven Weektype = iota
+	WeekTypeEven
 	WeekTypeBoth
 )
 
 var weektypeNames = []string{
-	"even",
 	"odd",
+	"even",
 	"both",
 }
 

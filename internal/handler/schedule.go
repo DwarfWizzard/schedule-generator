@@ -20,6 +20,7 @@ type ScheduleUsecase interface {
 	ListSchedule(ctx context.Context) (usecases.ListScheduleOutput, error)
 	GetSchedule(ctx context.Context, scheduleID uuid.UUID) (*usecases.GetScheduleOutput, error)
 	AddItemsToSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.AddItemToScheduleInput) error
+	UpdateItemInSchedule(ctx context.Context, scheduleID uuid.UUID, input usecases.AddItemToScheduleInput) error
 	RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.RemoveItemFromScheduleInput) error
 	ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error
 	ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error
@@ -29,6 +30,7 @@ type ScheduleUsecase interface {
 type ScheduleItem struct {
 	Discipline        string     `json:"discipline"`
 	TeacherID         uuid.UUID  `json:"teacher_id"`
+	TeacherName       string     `json:"teacher_name"`
 	Weekday           string     `json:"weekday"`
 	StudentsCount     int16      `json:"students_count"`
 	Date              *time.Time `json:"date"`
@@ -139,15 +141,15 @@ func (h *Handler) GetSchedule(c echo.Context) error {
 }
 
 type AddScheduleItemRequest struct {
-	Discipline    string       `json:"discipline"`
-	TeacherID     uuid.UUID    `json:"teacher_id"`
-	Weekday       time.Weekday `json:"weekday"`
-	StudentsCount int16        `json:"students_count"`
-	LessonNumber  int8         `json:"lesson_number"`
-	Subgroup      int8         `json:"subgroup"`
-	Weektype      int8         `json:"weektype"`
-	LessonType    int8         `json:"lesson_type"`
-	CabinetID     uuid.UUID    `json:"cabinet_id"`
+	Discipline    string        `json:"discipline"`
+	TeacherID     uuid.UUID     `json:"teacher_id"`
+	Weekday       *time.Weekday `json:"weekday"`
+	StudentsCount int16         `json:"students_count"`
+	LessonNumber  int8          `json:"lesson_number"`
+	Subgroup      int8          `json:"subgroup"`
+	Weektype      *int8         `json:"weektype"`
+	LessonType    int8          `json:"lesson_type"`
+	CabinetID     uuid.UUID     `json:"cabinet_id"`
 }
 
 // AddScheduleItem - POST /v1/schedules/:id/items
@@ -172,16 +174,52 @@ func (h *Handler) AddScheduleItem(c echo.Context) error {
 			Discipline:    item.Discipline,
 			TeacherID:     item.TeacherID,
 			StudentsCount: item.StudentsCount,
-			Weekday:       &item.Weekday,
+			Weekday:       item.Weekday,
 			LessonNumber:  item.LessonNumber,
 			Subgroup:      item.Subgroup,
-			Weektype:      &item.Weektype,
+			Weektype:      item.Weektype,
 			LessonType:    item.LessonType,
 			CabinetID:     item.CabinetID,
 		}
 	}
 
 	err = h.schedule.AddItemsToSchedule(ctx, scheduleID, input)
+	if err != nil {
+		h.logger.Error("Add items to schedule error", "error", err)
+		return err
+	}
+
+	return WrapResponse(http.StatusOK, nil).Send(c)
+}
+
+// AddScheduleItem - PUT /v1/schedules/:id/items
+func (h *Handler) UpdateScheduleItem(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var rq *AddScheduleItemRequest
+	if err := c.Bind(&rq); err != nil {
+		h.logger.Error("Parse request error", "error", err)
+		return ErrNotParsable
+	}
+
+	scheduleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return ErrInvalidInput
+	}
+
+	input := usecases.AddItemToScheduleInput{
+		Discipline:    rq.Discipline,
+		TeacherID:     rq.TeacherID,
+		StudentsCount: rq.StudentsCount,
+		Weekday:       rq.Weekday,
+		LessonNumber:  rq.LessonNumber,
+		Subgroup:      rq.Subgroup,
+		Weektype:      rq.Weektype,
+		LessonType:    rq.LessonType,
+		CabinetID:     rq.CabinetID,
+	}
+
+	err = h.schedule.UpdateItemInSchedule(ctx, scheduleID, input)
 	if err != nil {
 		h.logger.Error("Add items to schedule error", "error", err)
 		return err
@@ -298,6 +336,7 @@ func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule
 			items = append(items, ScheduleItem{
 				Discipline:        item.Discipline,
 				TeacherID:         item.TeacherID,
+				TeacherName:       item.TeacherName,
 				Weekday:           item.Weekday.String(),
 				StudentsCount:     item.StudentsCount,
 				Date:              item.Date,

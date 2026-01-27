@@ -91,7 +91,7 @@ func (r *Repository) ListSchedule(ctx context.Context) ([]schedules.Schedule, er
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Find(&list).Error
+	}).Order("edu_group_id ASC, semester DESC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
@@ -118,7 +118,7 @@ func (r *Repository) ListScheduleByEduGroup(ctx context.Context, groupID uuid.UU
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Where("edu_group_id = ?", groupID).Find(&list).Error
+	}).Where("edu_group_id = ?", groupID).Order("semester DESC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

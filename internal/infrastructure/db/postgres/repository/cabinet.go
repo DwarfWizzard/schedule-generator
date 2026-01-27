@@ -47,7 +47,7 @@ func (r *Repository) GetCabinet(ctx context.Context, id uuid.UUID) (*cabinets.Ca
 
 func (r *Repository) ListCabinet(ctx context.Context) ([]cabinets.Cabinet, error) {
 	var list []schema.Cabinet
-	err := r.client.WithContext(ctx).Find(&list).Error
+	err := r.client.WithContext(ctx).Order("building, auditorium").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
