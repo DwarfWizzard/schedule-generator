@@ -8,6 +8,7 @@ import (
 
 	"schedule-generator/internal/domain/cabinets"
 	"schedule-generator/internal/domain/faculties"
+	"schedule-generator/internal/domain/users"
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
 
@@ -22,14 +23,16 @@ type CabinetUsecaseRepo interface {
 }
 
 type CabinetUsecase struct {
-	repo   CabinetUsecaseRepo
-	logger *slog.Logger
+	repo    CabinetUsecaseRepo
+	authSvc AuthorizationService
+	logger  *slog.Logger
 }
 
-func NewCabinetUsecase(repo CabinetUsecaseRepo, logger *slog.Logger) *CabinetUsecase {
+func NewCabinetUsecase(authSvc AuthorizationService, repo CabinetUsecaseRepo, logger *slog.Logger) *CabinetUsecase {
 	return &CabinetUsecase{
-		repo:   repo,
-		logger: logger,
+		authSvc: authSvc,
+		repo:    repo,
+		logger:  logger,
 	}
 }
 
@@ -55,8 +58,12 @@ type CreateCabinetOutput struct {
 }
 
 // CreateCabinet
-func (uc *CabinetUsecase) CreateCabinet(ctx context.Context, input CreateCabinetInput) (*CreateCabinetOutput, error) {
+func (uc *CabinetUsecase) CreateCabinet(ctx context.Context, input CreateCabinetInput, user *users.User) (*CreateCabinetOutput, error) {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	faculty, err := uc.repo.GetFaculty(ctx, input.FacultyID)
 	if err != nil {
@@ -111,8 +118,12 @@ type GetCabinetOutput struct {
 }
 
 // GetCabinet
-func (uc *CabinetUsecase) GetCabinet(ctx context.Context, cabinetID uuid.UUID) (*GetCabinetOutput, error) {
+func (uc *CabinetUsecase) GetCabinet(ctx context.Context, cabinetID uuid.UUID, user *users.User) (*GetCabinetOutput, error) {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	cabinet, err := uc.repo.GetCabinet(ctx, cabinetID)
 	if err != nil {
@@ -139,7 +150,7 @@ func (uc *CabinetUsecase) GetCabinet(ctx context.Context, cabinetID uuid.UUID) (
 type ListCabinetOutput = []GetCabinetOutput
 
 // ListCabinet
-func (uc *CabinetUsecase) ListCabinet(ctx context.Context) (ListCabinetOutput, error) {
+func (uc *CabinetUsecase) ListCabinet(ctx context.Context, user *users.User) (ListCabinetOutput, error) {
 	logger := uc.logger
 
 	cabinets, err := uc.repo.ListCabinet(ctx)
@@ -194,8 +205,12 @@ type UpdateCabinetOutput struct {
 }
 
 // UpdateCabinet
-func (uc *CabinetUsecase) UpdateCabinet(ctx context.Context, input UpdateCabinetInput) (*UpdateCabinetOutput, error) {
+func (uc *CabinetUsecase) UpdateCabinet(ctx context.Context, input UpdateCabinetInput, user *users.User) (*UpdateCabinetOutput, error) {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	cabinet, err := uc.repo.GetCabinet(ctx, input.CabinetID)
 	if err != nil {
@@ -279,8 +294,12 @@ func (uc *CabinetUsecase) UpdateCabinet(ctx context.Context, input UpdateCabinet
 }
 
 // DeleteCabinet
-func (uc *CabinetUsecase) DeleteCabinet(ctx context.Context, cabinetID uuid.UUID) error {
+func (uc *CabinetUsecase) DeleteCabinet(ctx context.Context, cabinetID uuid.UUID, user *users.User) error {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	err := uc.repo.DeleteCabinet(ctx, cabinetID)
 	if err != nil {
