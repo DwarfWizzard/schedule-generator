@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
+	"schedule-generator/internal/application/services"
 	edugroups "schedule-generator/internal/domain/edu_groups"
 	eduplans "schedule-generator/internal/domain/edu_plans"
+	"schedule-generator/internal/domain/users"
 
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
@@ -22,14 +24,16 @@ type EduGroupUsecaseRepo interface {
 }
 
 type EduGroupUsecase struct {
-	repo   EduGroupUsecaseRepo
-	logger *slog.Logger
+	repo    EduGroupUsecaseRepo
+	authSvc *services.AuthorizationService
+	logger  *slog.Logger
 }
 
-func NewEduGroupUsecase(repo EduGroupUsecaseRepo, logger *slog.Logger) *EduGroupUsecase {
+func NewEduGroupUsecase(authSvc *services.AuthorizationService, repo EduGroupUsecaseRepo, logger *slog.Logger) *EduGroupUsecase {
 	return &EduGroupUsecase{
-		repo:   repo,
-		logger: logger,
+		authSvc: authSvc,
+		repo:    repo,
+		logger:  logger,
 	}
 }
 
@@ -43,7 +47,7 @@ type CreateEdugroupOutput struct {
 }
 
 // CreateEdugroup
-func (uc *EduGroupUsecase) CreateEdugroup(ctx context.Context, input CreateEdugroupInput) (*CreateEdugroupOutput, error) {
+func (uc *EduGroupUsecase) CreateEdugroup(ctx context.Context, input CreateEdugroupInput, user *users.User) (*CreateEdugroupOutput, error) {
 	logger := uc.logger
 
 	eduplan, err := uc.repo.GetEduPlan(ctx, input.EduPlanID)
@@ -54,6 +58,13 @@ func (uc *EduGroupUsecase) CreateEdugroup(ctx context.Context, input CreateEdugr
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduPlan(ctx, eduplan, user); err != nil {
+		logger.Error("Check access to edu plan error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu plan"))
 	}
 
 	group, err := edugroups.NewEduGroup(input.Number, eduplan)
@@ -82,7 +93,7 @@ type GetEduGroupOutput struct {
 }
 
 // GetEduGroup
-func (uc *EduGroupUsecase) GetEduGroup(ctx context.Context, groupID uuid.UUID) (*GetEduGroupOutput, error) {
+func (uc *EduGroupUsecase) GetEduGroup(ctx context.Context, groupID uuid.UUID, user *users.User) (*GetEduGroupOutput, error) {
 	logger := uc.logger
 
 	group, err := uc.repo.GetEduGroup(ctx, groupID)
@@ -95,18 +106,37 @@ func (uc *EduGroupUsecase) GetEduGroup(ctx context.Context, groupID uuid.UUID) (
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	if ok, err := uc.authSvc.HaveAccessToEduGroup(ctx, group, user); err != nil {
+		logger.Error("Check access to group error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu group"))
+	}
+
 	return &GetEduGroupOutput{
 		EduGroup: *group,
 	}, nil
 }
 
 // ListEduGroup
-func (uc *EduGroupUsecase) ListEduGroup(ctx context.Context) ([]GetEduGroupOutput, error) {
+func (uc *EduGroupUsecase) ListEduGroup(ctx context.Context, user *users.User) ([]GetEduGroupOutput, error) {
 	logger := uc.logger
 
-	groups, err := uc.repo.ListEduGroup(ctx)
-	if err != nil {
-		logger.Error("List edu group error", "error", err)
+	var groups []edugroups.EduGroup
+	var listErr error
+
+	if uc.authSvc.IsAdmin(user) {
+		groups, listErr = uc.repo.ListEduGroup(ctx)
+	} else {
+		if user.FacultyID == nil {
+			return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user not accociated with any faculty"))
+		}
+
+		groups, listErr = uc.repo.ListEduGroupByFacultyID(ctx, *user.FacultyID)
+	}
+
+	if listErr != nil {
+		logger.Error("List edu group error", "error", listErr)
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
@@ -131,7 +161,7 @@ type UpdateEduGroupOutput struct {
 }
 
 // UpdateEduGroup
-func (uc *EduGroupUsecase) UpdateEduGroup(ctx context.Context, input UpdateEduGroupInput) (*UpdateEduGroupOutput, error) {
+func (uc *EduGroupUsecase) UpdateEduGroup(ctx context.Context, input UpdateEduGroupInput, user *users.User) (*UpdateEduGroupOutput, error) {
 	logger := uc.logger
 
 	group, err := uc.repo.GetEduGroup(ctx, input.EduGroupID)
@@ -142,6 +172,13 @@ func (uc *EduGroupUsecase) UpdateEduGroup(ctx context.Context, input UpdateEduGr
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduGroup(ctx, group, user); err != nil {
+		logger.Error("Check access to group error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu group"))
 	}
 
 	if input.Number != nil {
@@ -170,10 +207,27 @@ func (uc *EduGroupUsecase) UpdateEduGroup(ctx context.Context, input UpdateEduGr
 }
 
 // DeleteEduGroup
-func (uc *EduGroupUsecase) DeleteEduGroup(ctx context.Context, groupID uuid.UUID) error {
+func (uc *EduGroupUsecase) DeleteEduGroup(ctx context.Context, groupID uuid.UUID, user *users.User) error {
 	logger := uc.logger
 
-	err := uc.repo.DeleteEduGroup(ctx, groupID)
+	group, err := uc.repo.GetEduGroup(ctx, groupID)
+	if err != nil {
+		logger.Error("List edu group error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("edu group not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduGroup(ctx, group, user); err != nil {
+		logger.Error("Check access to group error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu group"))
+	}
+
+	err = uc.repo.DeleteEduGroup(ctx, groupID)
 	if err != nil {
 		logger.Error("Delete edu group error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/domain/cabinets"
 	"schedule-generator/internal/domain/faculties"
 	"schedule-generator/internal/domain/users"
@@ -24,11 +25,11 @@ type CabinetUsecaseRepo interface {
 
 type CabinetUsecase struct {
 	repo    CabinetUsecaseRepo
-	authSvc AuthorizationService
+	authSvc *services.AuthorizationService
 	logger  *slog.Logger
 }
 
-func NewCabinetUsecase(authSvc AuthorizationService, repo CabinetUsecaseRepo, logger *slog.Logger) *CabinetUsecase {
+func NewCabinetUsecase(authSvc *services.AuthorizationService, repo CabinetUsecaseRepo, logger *slog.Logger) *CabinetUsecase {
 	return &CabinetUsecase{
 		authSvc: authSvc,
 		repo:    repo,

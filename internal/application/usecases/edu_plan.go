@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"schedule-generator/internal/application/services"
 	edudirections "schedule-generator/internal/domain/edu_directions"
 	eduplans "schedule-generator/internal/domain/edu_plans"
+	"schedule-generator/internal/domain/users"
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
 
@@ -22,11 +24,12 @@ type EduPlanUsecaseRepo interface {
 }
 
 type EduPlanUsecase struct {
-	repo   EduPlanUsecaseRepo
-	logger *slog.Logger
+	repo    EduPlanUsecaseRepo
+	authSvc *services.AuthorizationService
+	logger  *slog.Logger
 }
 
-func NewEduPlanUsecase(repo EduPlanUsecaseRepo, logger *slog.Logger) *EduPlanUsecase {
+func NewEduPlanUsecase(authSvc *services.AuthorizationService, repo EduPlanUsecaseRepo, logger *slog.Logger) *EduPlanUsecase {
 	return &EduPlanUsecase{
 		repo:   repo,
 		logger: logger,
@@ -45,7 +48,7 @@ type CreateEduPlanOutput struct {
 }
 
 // CreateEduPlan
-func (uc *EduPlanUsecase) CreateEduPlan(ctx context.Context, input CreateEduPlanInput) (*CreateEduPlanOutput, error) {
+func (uc *EduPlanUsecase) CreateEduPlan(ctx context.Context, input CreateEduPlanInput, user *users.User) (*CreateEduPlanOutput, error) {
 	logger := uc.logger
 
 	direction, err := uc.repo.GetEduDirection(ctx, input.DirectionID)
@@ -56,6 +59,13 @@ func (uc *EduPlanUsecase) CreateEduPlan(ctx context.Context, input CreateEduPlan
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduDirection(ctx, direction, user); err != nil {
+		logger.Error("Check access to direction error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to direction"))
 	}
 
 	eduplan, err := eduplans.NewEduPlan(direction.ID, input.Profile, input.Year)
@@ -86,7 +96,7 @@ type GetEduPlanOutput struct {
 }
 
 // GetEduPlan
-func (uc *EduPlanUsecase) GetEduPlan(ctx context.Context, eduplanID uuid.UUID) (*GetEduPlanOutput, error) {
+func (uc *EduPlanUsecase) GetEduPlan(ctx context.Context, eduplanID uuid.UUID, user *users.User) (*GetEduPlanOutput, error) {
 	logger := uc.logger
 
 	eduplan, err := uc.repo.GetEduPlan(ctx, eduplanID)
@@ -97,6 +107,13 @@ func (uc *EduPlanUsecase) GetEduPlan(ctx context.Context, eduplanID uuid.UUID) (
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduPlan(ctx, eduplan, user); err != nil {
+		logger.Error("Check access to edu plan error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu plan"))
 	}
 
 	direction, err := uc.repo.GetEduDirection(ctx, eduplan.DirectionID)
@@ -112,12 +129,24 @@ func (uc *EduPlanUsecase) GetEduPlan(ctx context.Context, eduplanID uuid.UUID) (
 }
 
 // ListEduPlan
-func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context) ([]GetEduPlanOutput, error) {
+func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context, user *users.User) ([]GetEduPlanOutput, error) {
 	logger := uc.logger
 
-	plans, err := uc.repo.ListEduPlan(ctx)
-	if err != nil {
-		logger.Error("List edu plan error", "error", err)
+	var plans []eduplans.EduPlan
+	var listErr error
+
+	if uc.authSvc.IsAdmin(user) {
+		plans, listErr = uc.repo.ListEduPlan(ctx)
+	} else {
+		if user.FacultyID == nil {
+			return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user not accociated with any faculty"))
+		}
+
+		plans, listErr = uc.repo.ListEduPlanByFaculty(ctx, *user.FacultyID)
+	}
+
+	if listErr != nil {
+		logger.Error("List plans error", "error", listErr)
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
@@ -151,10 +180,27 @@ func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context) ([]GetEduPlanOutput, 
 }
 
 // DeleteEduPlan
-func (uc *EduPlanUsecase) DeleteEduPlan(ctx context.Context, eduplanID uuid.UUID) error {
+func (uc *EduPlanUsecase) DeleteEduPlan(ctx context.Context, eduplanID uuid.UUID, user *users.User) error {
 	logger := uc.logger
 
-	err := uc.repo.DeleteEduPlan(ctx, eduplanID)
+	eduplan, err := uc.repo.GetEduPlan(ctx, eduplanID)
+	if err != nil {
+		logger.Error("List eduplan error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("eduplan not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduPlan(ctx, eduplan, user); err != nil {
+		logger.Error("Check access to edu plan error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu plan"))
+	}
+
+	err = uc.repo.DeleteEduPlan(ctx, eduplanID)
 	if err != nil {
 		logger.Error("Delete edu eduplan error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)

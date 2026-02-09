@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
+	"schedule-generator/internal/application/services"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -16,6 +19,7 @@ type Handler struct {
 	schedule     ScheduleUsecase
 	teacher      TeacherUsecase
 	cabinet      CabinetUsecase
+	user         UserUsecase
 	logger       *slog.Logger
 }
 
@@ -28,6 +32,7 @@ func NewHandler(
 	schedule ScheduleUsecase,
 	teacher TeacherUsecase,
 	cabinet CabinetUsecase,
+	user UserUsecase,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
@@ -39,11 +44,12 @@ func NewHandler(
 		teacher:      teacher,
 		schedule:     schedule,
 		cabinet:      cabinet,
+		user:         user,
 		logger:       logger,
 	}
 }
 
-func (h *Handler) InitRouter() *echo.Echo {
+func (h *Handler) InitRouter(tokenService services.TokenService) *echo.Echo {
 	router := echo.New()
 	router.HTTPErrorHandler = NewHttpErrorHandler(h.logger)
 	router.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -58,7 +64,7 @@ func (h *Handler) InitRouter() *echo.Echo {
 		}, // Разрешённые заголовки
 	}))
 
-	api := router.Group("/v1")
+	api := router.Group("/v1", h.AuthorizationMiddleware())
 
 	faculties := api.Group("/faculties")
 	{
@@ -131,4 +137,13 @@ func (h *Handler) InitRouter() *echo.Echo {
 	}
 
 	return router
+}
+
+func ExtractUserFromClaims(c echo.Context) (*users.User, error) {
+	user, ok := c.Get("authorized-user").(*users.User)
+	if !ok || user == nil {
+		return nil, errors.New("user not found in context")
+	}
+
+	return user, nil
 }

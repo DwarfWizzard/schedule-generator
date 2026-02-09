@@ -1,6 +1,8 @@
 package users
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+)
 
 type AuthorizationService struct{}
 
@@ -17,5 +19,5 @@ func (s *AuthorizationService) IsAdmin(user *User) bool {
 		return false
 	}
 
-	return user.Role == "admin"
+	return user.Role == RoleAdmin
 }

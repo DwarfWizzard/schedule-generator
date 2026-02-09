@@ -6,17 +6,18 @@ import (
 
 	"schedule-generator/internal/application/usecases"
 	edugroups "schedule-generator/internal/domain/edu_groups"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type EduGroupUsecase interface {
-	CreateEdugroup(ctx context.Context, input usecases.CreateEdugroupInput) (*usecases.CreateEdugroupOutput, error)
-	GetEduGroup(ctx context.Context, groupID uuid.UUID) (*usecases.GetEduGroupOutput, error)
-	ListEduGroup(ctx context.Context) ([]usecases.GetEduGroupOutput, error)
-	UpdateEduGroup(ctx context.Context, input usecases.UpdateEduGroupInput) (*usecases.UpdateEduGroupOutput, error)
-	DeleteEduGroup(ctx context.Context, groupID uuid.UUID) error
+	CreateEdugroup(ctx context.Context, input usecases.CreateEdugroupInput, user *users.User) (*usecases.CreateEdugroupOutput, error)
+	GetEduGroup(ctx context.Context, groupID uuid.UUID, user *users.User) (*usecases.GetEduGroupOutput, error)
+	ListEduGroup(ctx context.Context, user *users.User) ([]usecases.GetEduGroupOutput, error)
+	UpdateEduGroup(ctx context.Context, input usecases.UpdateEduGroupInput, user *users.User) (*usecases.UpdateEduGroupOutput, error)
+	DeleteEduGroup(ctx context.Context, groupID uuid.UUID, user *users.User) error
 }
 
 type EduGroup struct {
@@ -40,6 +41,11 @@ type UpdateEduGroupRequest struct {
 func (h *Handler) CreateEduGroup(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq CreateEduGroupRequest
 	if err := c.Bind(&rq); err != nil {
 		return ErrNotParsable
@@ -48,7 +54,7 @@ func (h *Handler) CreateEduGroup(c echo.Context) error {
 	out, err := h.eduGroup.CreateEdugroup(ctx, usecases.CreateEdugroupInput{
 		Number:    rq.Number,
 		EduPlanID: rq.EduPlanID,
-	})
+	}, user)
 	if err != nil {
 		return err
 	}
@@ -60,12 +66,17 @@ func (h *Handler) CreateEduGroup(c echo.Context) error {
 func (h *Handler) GetEduGroup(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	groupID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	out, err := h.eduGroup.GetEduGroup(ctx, groupID)
+	out, err := h.eduGroup.GetEduGroup(ctx, groupID, user)
 	if err != nil {
 		return err
 	}
@@ -77,7 +88,12 @@ func (h *Handler) GetEduGroup(c echo.Context) error {
 func (h *Handler) ListEduGroup(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	out, err := h.eduGroup.ListEduGroup(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	out, err := h.eduGroup.ListEduGroup(ctx, user)
 	if err != nil {
 		return err
 	}
@@ -94,6 +110,11 @@ func (h *Handler) ListEduGroup(c echo.Context) error {
 func (h *Handler) UpdateEduGroup(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	groupID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
@@ -107,7 +128,7 @@ func (h *Handler) UpdateEduGroup(c echo.Context) error {
 	out, err := h.eduGroup.UpdateEduGroup(ctx, usecases.UpdateEduGroupInput{
 		EduGroupID: groupID,
 		Number:     rq.Number,
-	})
+	}, user)
 	if err != nil {
 		return err
 	}
@@ -119,12 +140,17 @@ func (h *Handler) UpdateEduGroup(c echo.Context) error {
 func (h *Handler) DeleteEduGroup(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	groupID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	if err := h.eduGroup.DeleteEduGroup(ctx, groupID); err != nil {
+	if err := h.eduGroup.DeleteEduGroup(ctx, groupID, user); err != nil {
 		return err
 	}
 

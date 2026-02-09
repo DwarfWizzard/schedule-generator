@@ -6,17 +6,18 @@ import (
 
 	"schedule-generator/internal/application/usecases"
 	"schedule-generator/internal/domain/teachers"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type TeacherUsecase interface {
-	CreateTeacher(ctx context.Context, input usecases.CreateTeacherInput) (*usecases.CreateTeacherOutput, error)
-	GetTeacher(ctx context.Context, teacherID uuid.UUID) (*usecases.GetTeacherOutput, error)
-	ListTeacher(ctx context.Context) ([]usecases.GetTeacherOutput, error)
-	UpdateTeacher(ctx context.Context, input usecases.UpdateTeacherInput) (*usecases.UpdateTeacherOutput, error)
-	DeleteTeacher(ctx context.Context, teacherID uuid.UUID) error
+	CreateTeacher(ctx context.Context, input usecases.CreateTeacherInput, user *users.User) (*usecases.CreateTeacherOutput, error)
+	GetTeacher(ctx context.Context, teacherID uuid.UUID, user *users.User) (*usecases.GetTeacherOutput, error)
+	ListTeacher(ctx context.Context, user *users.User) ([]usecases.GetTeacherOutput, error)
+	UpdateTeacher(ctx context.Context, input usecases.UpdateTeacherInput, user *users.User) (*usecases.UpdateTeacherOutput, error)
+	DeleteTeacher(ctx context.Context, teacherID uuid.UUID, user *users.User) error
 }
 
 type Teacher struct {
@@ -40,6 +41,11 @@ type CreateTeacherRequest struct {
 func (h *Handler) CreateTeacher(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq CreateTeacherRequest
 	if err := c.Bind(&rq); err != nil {
 		return ErrNotParsable
@@ -51,7 +57,7 @@ func (h *Handler) CreateTeacher(c echo.Context) error {
 		Name:         rq.Name,
 		Position:     rq.Position,
 		Degree:       rq.Degree,
-	})
+	}, user)
 	if err != nil {
 		return err
 	}
@@ -63,12 +69,17 @@ func (h *Handler) CreateTeacher(c echo.Context) error {
 func (h *Handler) GetTeacher(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	teacherID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	out, err := h.teacher.GetTeacher(ctx, teacherID)
+	out, err := h.teacher.GetTeacher(ctx, teacherID, user)
 	if err != nil {
 		return err
 	}
@@ -80,7 +91,12 @@ func (h *Handler) GetTeacher(c echo.Context) error {
 func (h *Handler) ListTeacher(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	out, err := h.teacher.ListTeacher(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	out, err := h.teacher.ListTeacher(ctx, user)
 	if err != nil {
 		return err
 	}
@@ -104,6 +120,11 @@ type UpdateTeacherRequest struct {
 func (h *Handler) UpdateTeacher(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	teacherID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
@@ -120,7 +141,7 @@ func (h *Handler) UpdateTeacher(c echo.Context) error {
 		Name:       rq.Name,
 		Position:   rq.Position,
 		Degree:     rq.Degree,
-	})
+	}, user)
 	if err != nil {
 		return err
 	}
@@ -132,12 +153,17 @@ func (h *Handler) UpdateTeacher(c echo.Context) error {
 func (h *Handler) DeleteTeacher(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	teacherID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	if err := h.teacher.DeleteTeacher(ctx, teacherID); err != nil {
+	if err := h.teacher.DeleteTeacher(ctx, teacherID, user); err != nil {
 		return err
 	}
 

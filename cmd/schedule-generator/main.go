@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"schedule-generator/internal/application/acl/exporter"
+	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/application/usecases"
 	"schedule-generator/internal/handler"
 	"schedule-generator/internal/infrastructure/db/postgres/repository"
@@ -44,16 +45,17 @@ func main() {
 
 	repo := repository.NewPostgresRepository(db.DB())
 	exp := exporter.NewExporterFactory(repo, logger)
+	authSvc := services.NewAuthorizationService(repo)
 
 	h := handler.NewHandler(
-		usecases.NewDepartmentUsecase(repo, logger),
-		usecases.NewEduDirectionUsecase(repo, logger),
-		usecases.NewEduGroupUsecase(repo, logger),
-		usecases.NewEduPlanUsecase(repo, logger),
-		usecases.NewFacultyUsecase(repo, logger),
-		usecases.NewScheduleUsecase(repo, exp, logger),
-		usecases.NewTeacherUsecase(repo, logger),
-		usecases.NewCabinetUsecase(repo, logger),
+		usecases.NewDepartmentUsecase(authSvc, repo, logger),
+		usecases.NewEduDirectionUsecase(authSvc, repo, logger),
+		usecases.NewEduGroupUsecase(authSvc, repo, logger),
+		usecases.NewEduPlanUsecase(authSvc, repo, logger),
+		usecases.NewFacultyUsecase(authSvc, repo, logger),
+		usecases.NewScheduleUsecase(authSvc, repo, exp, logger),
+		usecases.NewTeacherUsecase(authSvc, repo, logger),
+		usecases.NewCabinetUsecase(authSvc, repo, logger),
 		logger,
 	)
 
