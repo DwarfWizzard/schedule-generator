@@ -44,6 +44,13 @@ var calendarCsvHeader = []string{
 	"Subj_CafID",
 	"PrepID",
 	"Themas",
+	"Substitution_Name",       // leaved empty
+	"Substitution_PrepID",     // leaved empty
+	"Substitution_Subject",    // leaved empty
+	"Substitution_Subj_type",  // leaved empty
+	"Substitution_Subj_CafID", // leaved empty
+	"Lesson_ID",               // leaved empty
+	"Lesson_Num",              // leaved empty
 }
 
 type scheduleItemHandler func(ctx context.Context, groupNumber string, item schedules.ScheduleItem) ([]string, error)
@@ -135,7 +142,7 @@ func (exp *csvExporter) cycledScheduleItemHandler(ctx context.Context, groupNumb
 	return []string{
 		groupNumber,
 		strconv.FormatInt(int64(item.Weekday), 10),
-		strconv.FormatInt(int64(item.LessonNumber), 10),
+		strconv.FormatInt(int64(item.LessonNumber)+1, 10),
 		formCabinetAddress(item.Cabinet),
 		weekType,
 		subgroup,
@@ -180,7 +187,7 @@ func (exp *csvExporter) calendarScheduleItemHandler(ctx context.Context, groupNu
 		groupNumber,
 		strconv.FormatInt(int64(item.StudentsCount), 10),
 		strconv.FormatInt(int64(item.Weekday), 10),
-		strconv.FormatInt(int64(item.LessonNumber), 10),
+		strconv.FormatInt(int64(item.LessonNumber)+1, 10),
 		formCabinetAddress(item.Cabinet),
 		weeknum,
 		subgroup,
