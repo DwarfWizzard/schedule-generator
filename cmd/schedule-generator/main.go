@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"schedule-generator/internal/application/acl/exporter"
 	"schedule-generator/internal/application/services"
@@ -16,22 +17,43 @@ import (
 	"schedule-generator/internal/handler"
 	"schedule-generator/internal/infrastructure/db/postgres/repository"
 	"schedule-generator/internal/infrastructure/db/postgres/schema"
+	"schedule-generator/internal/infrastructure/services/pwd"
+	"schedule-generator/internal/infrastructure/services/token"
 	"schedule-generator/pkg/pggorm"
+
+	"github.com/ardanlabs/conf/v3"
 )
+
+const appPrefix = ""
+
+type Config struct {
+	PostgresConnectionUrl string        `conf:"required,notzero"`
+	AccessTokenSecret     string        `conf:"required,mask,notzero"`
+	RefreshTokenSecret    string        `conf:"required,mask,notzero"`
+	AccessTTL             time.Duration `conf:"default:15m"`
+	RefreshTTL            time.Duration `conf:"default:24h"`
+	PasswordSalt          string        `conf:"required,mask,notzero"`
+}
 
 func main() {
 	logger := slog.Default()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	var cfg Config
+	help, err := conf.Parse(appPrefix, &cfg)
+	if err != nil {
+		if errors.Is(err, conf.ErrHelpWanted) {
+			fmt.Println(help)
+		} else {
+			logger.Error("Invalid configuration")
+		}
 
-	pgConnUrl := os.Getenv("POSTGRES_CONNECTION_URL")
-	if _, err := url.Parse(pgConnUrl); err != nil {
-		logger.Error("Invalid POSTGRES_CONNECTION_URL")
 		os.Exit(1)
 	}
 
-	db, err := pggorm.NewDB(pgConnUrl)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db, err := pggorm.NewDB(cfg.PostgresConnectionUrl)
 	if err != nil {
 		logger.Error("Connect to postgre error", "error", err)
 		os.Exit(1)
@@ -46,6 +68,13 @@ func main() {
 	repo := repository.NewPostgresRepository(db.DB())
 	exp := exporter.NewExporterFactory(repo, logger)
 	authSvc := services.NewAuthorizationService(repo)
+	tokenSvc := token.NewTokenService(
+		cfg.AccessTokenSecret,
+		cfg.RefreshTokenSecret,
+		cfg.AccessTTL,
+		cfg.RefreshTTL,
+	)
+	pwdSvc := pwd.NewPasswordService(cfg.PasswordSalt)
 
 	h := handler.NewHandler(
 		usecases.NewDepartmentUsecase(authSvc, repo, logger),
@@ -56,6 +85,7 @@ func main() {
 		usecases.NewScheduleUsecase(authSvc, repo, exp, logger),
 		usecases.NewTeacherUsecase(authSvc, repo, logger),
 		usecases.NewCabinetUsecase(authSvc, repo, logger),
+		usecases.NewUserUsecase(authSvc, pwdSvc, tokenSvc, repo, logger),
 		logger,
 	)
 

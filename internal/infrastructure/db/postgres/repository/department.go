@@ -66,6 +66,26 @@ func (r *Repository) ListDepartment(ctx context.Context) ([]departments.Departme
 	return result, nil
 }
 
+// ListDepartment
+func (r *Repository) ListDepartmentByFaculty(ctx context.Context, facultyID uuid.UUID) ([]departments.Department, error) {
+	var list []schema.Department
+	err := r.client.WithContext(ctx).Where("faculty_id = ?", facultyID).Order("name ASC").Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]departments.Department, len(list))
+	for i, v := range list {
+		result[i] = *schema.DepartmentFromSchema(&v)
+	}
+
+	return result, nil
+}
+
 // MapDepartmentsByEduDirections
 func (r *Repository) MapDepartmentsByEduDirections(ctx context.Context, directionIDs uuid.UUIDs) (map[uuid.UUID]departments.Department, error) {
 	var dirList []schema.EduDirection

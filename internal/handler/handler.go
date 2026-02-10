@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"log/slog"
-	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/domain/users"
 
 	"github.com/labstack/echo/v4"
@@ -49,7 +48,7 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) InitRouter(tokenService services.TokenService) *echo.Echo {
+func (h *Handler) InitRouter() *echo.Echo {
 	router := echo.New()
 	router.HTTPErrorHandler = NewHttpErrorHandler(h.logger)
 	router.Use(middleware.CORSWithConfig(middleware.CORSConfig{

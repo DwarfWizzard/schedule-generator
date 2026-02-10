@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SaveEduGroup
@@ -46,6 +47,21 @@ func (r *Repository) GetEduGroup(ctx context.Context, id uuid.UUID) (*edugroups.
 	return schema.EduGroupFromSchema(&s), nil
 }
 
+// GetEduGroupFacultyID
+func (r *Repository) GetEduGroupFacultyID(ctx context.Context, groupID uuid.UUID) (uuid.UUID, error) {
+	var s schema.EduGroup
+	err := r.client.WithContext(ctx).Preload("EduPlan.Direction.Department").Preload(clause.Associations).Where("id = ?", groupID).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return uuid.UUID{}, db.ErrorNotFound
+		}
+
+		return uuid.UUID{}, err
+	}
+
+	return s.EduPlan.Direction.Department.FacultyID, nil
+}
+
 // GetEduGroupByNumber
 func (r *Repository) GetEduGroupByNumber(ctx context.Context, number string) (*edugroups.EduGroup, error) {
 	var s schema.EduGroup
@@ -65,6 +81,26 @@ func (r *Repository) GetEduGroupByNumber(ctx context.Context, number string) (*e
 func (r *Repository) ListEduGroup(ctx context.Context) ([]edugroups.EduGroup, error) {
 	var list []schema.EduGroup
 	err := r.client.WithContext(ctx).Order("number, admission_year ASC").Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]edugroups.EduGroup, len(list))
+	for i, v := range list {
+		result[i] = *schema.EduGroupFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// ListEduGroup
+func (r *Repository) ListEduGroupByFaculty(ctx context.Context, facultyID uuid.UUID) ([]edugroups.EduGroup, error) {
+	var list []schema.EduGroup
+	err := r.client.WithContext(ctx).Joins("EduPlan.Direction.Department").Where("Department.faculty_id = ?", facultyID).Order("number, admission_year ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

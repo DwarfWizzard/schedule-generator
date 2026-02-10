@@ -18,6 +18,15 @@ type jwtTokenService struct {
 	refreshTTL    time.Duration
 }
 
+func NewTokenService(accessSecret, refreshSecret string, accessTTL, refreshTTL time.Duration) *jwtTokenService {
+	return &jwtTokenService{
+		accessSecret:  accessSecret,
+		refreshSecret: refreshSecret,
+		accessTTL:     accessTTL,
+		refreshTTL:    refreshTTL,
+	}
+}
+
 func (s *jwtTokenService) GenerateToken(_ context.Context, claims *services.TokenClaims) (services.TokenPair, error) {
 	c := FromClaims(claims)
 

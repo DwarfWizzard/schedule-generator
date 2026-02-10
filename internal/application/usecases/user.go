@@ -34,6 +34,16 @@ type CreateUserInput struct {
 	FacultyID *uuid.UUID
 }
 
+func NewUserUsecase(authSvc *services.AuthorizationService, pwdSvc services.PasswordService, tokenSvc services.TokenService, repo UserUsecaseRepository, logger *slog.Logger) *UserUsecase {
+	return &UserUsecase{
+		repo:     repo,
+		authSvc:  authSvc,
+		pwdSvc:   pwdSvc,
+		tokenSvc: tokenSvc,
+		logger:   logger,
+	}
+}
+
 // CreateUser
 func (uc *UserUsecase) CreateUser(ctx context.Context, input CreateUserInput, user *users.User) (*users.User, error) {
 	logger := uc.logger
@@ -60,7 +70,11 @@ func (uc *UserUsecase) CreateUser(ctx context.Context, input CreateUserInput, us
 		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
 	}
 
-	pwdHash := uc.pwdSvc.HashPassword(user.PwdHash)
+	pwdHash, err := uc.pwdSvc.HashPassword(user.PwdHash)
+	if err != nil {
+		logger.Error("Hash password error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("password not allowed"))
+	}
 
 	u, err := users.NewUser(input.Username, role, input.FacultyID, pwdHash)
 	if err != nil {

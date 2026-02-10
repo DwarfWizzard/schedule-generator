@@ -132,7 +132,7 @@ func (uc *EduGroupUsecase) ListEduGroup(ctx context.Context, user *users.User) (
 			return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user not accociated with any faculty"))
 		}
 
-		groups, listErr = uc.repo.ListEduGroupByFacultyID(ctx, *user.FacultyID)
+		groups, listErr = uc.repo.ListEduGroupByFaculty(ctx, *user.FacultyID)
 	}
 
 	if listErr != nil {

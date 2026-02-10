@@ -205,7 +205,7 @@ func (uc *ScheduleUsecase) ListSchedule(ctx context.Context, user *users.User) (
 			return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user not accociated with any faculty"))
 		}
 
-		schedules, listErr = uc.repo.ListScheduleByFacultyID(ctx, *user.FacultyID)
+		schedules, listErr = uc.repo.ListScheduleByFaculty(ctx, *user.FacultyID)
 	}
 
 	if listErr != nil {

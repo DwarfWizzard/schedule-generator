@@ -46,10 +46,45 @@ func (r *Repository) GetEduDirection(ctx context.Context, id uuid.UUID) (*edudir
 	return schema.EduDirectionFromSchema(&s), nil
 }
 
+// GetEduDirectionFacultyID
+func (r *Repository) GetEduDirectionFacultyID(ctx context.Context, directionID uuid.UUID) (uuid.UUID, error) {
+	var s schema.EduDirection
+	err := r.client.WithContext(ctx).Preload("Department").Where("id = ?", directionID.String()).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return uuid.UUID{}, db.ErrorNotFound
+		}
+
+		return uuid.UUID{}, err
+	}
+
+	return s.Department.FacultyID, nil
+}
+
 // ListEduDirection
 func (r *Repository) ListEduDirection(ctx context.Context) ([]edudirections.EduDirection, error) {
 	var list []schema.EduDirection
 	err := r.client.WithContext(ctx).Order("name ASC").Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]edudirections.EduDirection, len(list))
+	for i, v := range list {
+		result[i] = *schema.EduDirectionFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// ListEduDirection
+func (r *Repository) ListEduDirectionByFaculty(ctx context.Context, facultyID uuid.UUID) ([]edudirections.EduDirection, error) {
+	var list []schema.EduDirection
+	err := r.client.WithContext(ctx).Joins("Department").Where("Department.faculty_id = ?", facultyID).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
