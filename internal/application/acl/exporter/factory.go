@@ -17,11 +17,21 @@ type ExporterRepository interface {
 
 type exporterFactory struct {
 	repo   ExporterRepository
+	opt    *Options
 	logger *slog.Logger
 }
 
-func NewExporterFactory(repo ExporterRepository, logger *slog.Logger) Factory {
+func NewExporterFactory(repo ExporterRepository, logger *slog.Logger, opts ...Option) Factory {
+	o := &Options{
+		CsvDelimeter: DefaultCsvDelimeter,
+	}
+
+	for _, setter := range opts {
+		setter(o)
+	}
+
 	return &exporterFactory{
+		opt:    o,
 		repo:   repo,
 		logger: logger,
 	}
@@ -30,7 +40,7 @@ func NewExporterFactory(repo ExporterRepository, logger *slog.Logger) Factory {
 func (f *exporterFactory) ByFormat(format string) (Exporter, error) {
 	switch format {
 	case "csv":
-		return &csvExporter{repo: f.repo, logger: f.logger.With("exporter", "csv")}, nil
+		return &csvExporter{repo: f.repo, logger: f.logger.With("exporter", "csv"), delimeter: f.opt.CsvDelimeter}, nil
 	default:
 		return nil, ErrUnknownFormat
 	}
