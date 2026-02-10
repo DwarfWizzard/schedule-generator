@@ -56,8 +56,9 @@ var calendarCsvHeader = []string{
 type scheduleItemHandler func(ctx context.Context, groupNumber string, item schedules.ScheduleItem) ([]string, error)
 
 type csvExporter struct {
-	repo   ExporterRepository
-	logger *slog.Logger
+	repo      ExporterRepository
+	delimeter rune
+	logger    *slog.Logger
 }
 
 func (exp *csvExporter) Export(ctx context.Context, schedule *schedules.Schedule, dst io.Writer) error {
@@ -89,6 +90,7 @@ func (exp *csvExporter) Export(ctx context.Context, schedule *schedules.Schedule
 	}
 
 	stream := csv.NewWriter(dst)
+	stream.Comma = exp.delimeter
 	stream.Write(header)
 
 	for _, item := range listItems {
@@ -198,6 +200,13 @@ func (exp *csvExporter) calendarScheduleItemHandler(ctx context.Context, groupNu
 		item.Date.Format("02.01.2006"),
 		"",
 		teacher.ExternalID,
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
 		"",
 	}, nil
 }
