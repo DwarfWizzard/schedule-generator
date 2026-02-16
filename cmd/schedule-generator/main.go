@@ -66,7 +66,7 @@ func main() {
 	}
 
 	repo := repository.NewPostgresRepository(db.DB())
-	exp := exporter.NewExporterFactory(repo, logger)
+	exp := exporter.NewExporterFactory(repo, logger, exporter.CsvDelimeter(';'))
 	authSvc := services.NewAuthorizationService(repo)
 	tokenSvc := token.NewTokenService(
 		cfg.AccessTokenSecret,
