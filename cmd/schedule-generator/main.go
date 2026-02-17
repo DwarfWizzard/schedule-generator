@@ -27,6 +27,7 @@ import (
 const appPrefix = ""
 
 type Config struct {
+	ApiPort               string        `conf:"required,notzero"`
 	PostgresConnectionUrl string        `conf:"required,notzero"`
 	AccessTokenSecret     string        `conf:"required,mask,notzero"`
 	RefreshTokenSecret    string        `conf:"required,mask,notzero"`
@@ -44,7 +45,7 @@ func main() {
 		if errors.Is(err, conf.ErrHelpWanted) {
 			fmt.Println(help)
 		} else {
-			logger.Error("Invalid configuration")
+			logger.Error("Invalid configuration", "error", err)
 		}
 
 		os.Exit(1)
@@ -95,7 +96,7 @@ func main() {
 
 	wg.Go(func() {
 		defer cancel()
-		if err := router.Start(":" + os.Getenv("API_PORT")); err != nil {
+		if err := router.Start(":" + cfg.ApiPort); err != nil {
 			logger.Error("Start router error", "error", err)
 		}
 	})

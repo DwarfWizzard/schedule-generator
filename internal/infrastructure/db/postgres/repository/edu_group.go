@@ -100,7 +100,7 @@ func (r *Repository) ListEduGroup(ctx context.Context) ([]edugroups.EduGroup, er
 // ListEduGroup
 func (r *Repository) ListEduGroupByFaculty(ctx context.Context, facultyID uuid.UUID) ([]edugroups.EduGroup, error) {
 	var list []schema.EduGroup
-	err := r.client.WithContext(ctx).Joins("EduPlan.Direction.Department").Where("Department.faculty_id = ?", facultyID).Order("number, admission_year ASC").Find(&list).Error
+	err := r.client.WithContext(ctx).Joins("EduPlan.Direction.Department").Where(`"EduPlan__Direction__Department".faculty_id = ?`, facultyID).Order("number, admission_year ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

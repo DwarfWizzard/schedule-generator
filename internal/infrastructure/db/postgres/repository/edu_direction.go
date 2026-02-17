@@ -84,7 +84,7 @@ func (r *Repository) ListEduDirection(ctx context.Context) ([]edudirections.EduD
 // ListEduDirection
 func (r *Repository) ListEduDirectionByFaculty(ctx context.Context, facultyID uuid.UUID) ([]edudirections.EduDirection, error) {
 	var list []schema.EduDirection
-	err := r.client.WithContext(ctx).Joins("Department").Where("Department.faculty_id = ?", facultyID).Order("name ASC").Find(&list).Error
+	err := r.client.WithContext(ctx).Joins("Department").Where(`"Department".faculty_id = ?`, facultyID).Order("name ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

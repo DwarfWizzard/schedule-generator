@@ -31,8 +31,9 @@ type EduPlanUsecase struct {
 
 func NewEduPlanUsecase(authSvc *services.AuthorizationService, repo EduPlanUsecaseRepo, logger *slog.Logger) *EduPlanUsecase {
 	return &EduPlanUsecase{
-		repo:   repo,
-		logger: logger,
+		authSvc: authSvc,
+		repo:    repo,
+		logger:  logger,
 	}
 }
 

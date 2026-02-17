@@ -134,7 +134,7 @@ func (r *Repository) ListScheduleByFaculty(ctx context.Context, facultyID uuid.U
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Joins("EduGroup.EduPlan.Direction.Department").Where("Department.faculty_id = ?", facultyID).Order("edu_group_id ASC, semester DESC").Find(&list).Error
+	}).Joins("EduGroup.EduPlan.Direction.Department").Where(`"EduGroup__EduPlan__Direction__Department".faculty_id = ?`, facultyID).Order("edu_group_id ASC, semester DESC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

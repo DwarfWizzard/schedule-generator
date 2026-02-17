@@ -14,7 +14,7 @@ func NewPasswordService(salt string) *service {
 
 // HashPassword
 func (s *service) HashPassword(pwd string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(pwd+s.passwordSalt), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
@@ -24,5 +24,5 @@ func (s *service) HashPassword(pwd string) (string, error) {
 
 // CompareWithHash
 func (s *service) CompareWithHash(hashed, pwd string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(pwd)) == nil
+	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(pwd+s.passwordSalt)) == nil
 }

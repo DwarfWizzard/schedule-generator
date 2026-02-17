@@ -60,10 +60,24 @@ func (h *Handler) InitRouter() *echo.Echo {
 			echo.HeaderOrigin,
 			echo.HeaderContentType,
 			echo.HeaderAccept,
+			echo.HeaderAuthorization,
 		}, // Разрешённые заголовки
 	}))
 
+	auth := router.Group("/auth")
+	{
+		auth.POST("/login", h.Login)
+		auth.POST("/refresh", h.Refresh)
+	}
+
 	api := router.Group("/v1", h.AuthorizationMiddleware())
+
+	users := api.Group("/users")
+	{
+		users.POST("", h.CreateUser)
+		users.GET("", h.ListUser)
+		users.GET("/:id", h.GetUser)
+	}
 
 	faculties := api.Group("/faculties")
 	{

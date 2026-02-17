@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/application/usecases"
 	"strings"
 
@@ -11,13 +10,18 @@ import (
 
 const TokenPrefix = "Bearer "
 
+type TokenPair struct {
+	Access  string `json:"access_token"`
+	Refresh string `json:"refresh_token"`
+}
+
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
 type LoginReponse struct {
-	services.TokenPair
+	TokenPair
 }
 
 // Login - POST /auth/login
@@ -38,14 +42,17 @@ func (h *Handler) Login(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, LoginReponse{TokenPair: tokenPair}).Send(c)
+	return WrapResponse(http.StatusOK, LoginReponse{TokenPair{
+		Access:  tokenPair.Access,
+		Refresh: tokenPair.Refresh,
+	}}).Send(c)
 }
 
 type RefreshRequest struct {
-	RefreshToken string `query:"refresh"`
+	RefreshToken string `json:"token"`
 }
 
-// Refresh - POST /auth/refresh
+// Refresh - POST /auth/refresh?token=
 func (h *Handler) Refresh(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -60,7 +67,10 @@ func (h *Handler) Refresh(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, LoginReponse{TokenPair: tokenPair}).Send(c)
+	return WrapResponse(http.StatusOK, LoginReponse{TokenPair{
+		Access:  tokenPair.Access,
+		Refresh: tokenPair.Refresh,
+	}}).Send(c)
 }
 
 // AuthorizationMiddleware
