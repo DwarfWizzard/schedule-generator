@@ -72,12 +72,12 @@ func (s *jwtTokenService) ParseRefreshToken(_ context.Context, refresh string) (
 
 func (s *jwtTokenService) generateTokenPair(claims *claims) (services.TokenPair, error) {
 	now := time.Now()
-	access, err := s.generateAccessToken(now, claims)
+	access, err := s.generateAccessToken(now, *claims)
 	if err != nil {
 		return services.TokenPair{}, fmt.Errorf("generate access token error: %w", err)
 	}
 
-	refresh, err := s.generateRefreshToken(now, claims)
+	refresh, err := s.generateRefreshToken(now, *claims)
 	if err != nil {
 		return services.TokenPair{}, fmt.Errorf("generate refresh token error: %w", err)
 	}
@@ -90,7 +90,7 @@ func (s *jwtTokenService) generateTokenPair(claims *claims) (services.TokenPair,
 	}, nil
 }
 
-func (s *jwtTokenService) generateAccessToken(t time.Time, claims *claims) (string, error) {
+func (s *jwtTokenService) generateAccessToken(t time.Time, claims claims) (string, error) {
 	claims.RegisteredClaims = j.RegisteredClaims{
 		IssuedAt:  j.NewNumericDate(t),
 		ExpiresAt: j.NewNumericDate(t.Add(s.accessTTL)),
@@ -99,7 +99,7 @@ func (s *jwtTokenService) generateAccessToken(t time.Time, claims *claims) (stri
 	return j.NewWithClaims(j.SigningMethodHS256, claims).SignedString([]byte(s.accessSecret))
 }
 
-func (s *jwtTokenService) generateRefreshToken(t time.Time, claims *claims) (string, error) {
+func (s *jwtTokenService) generateRefreshToken(t time.Time, claims claims) (string, error) {
 	claims.RegisteredClaims = j.RegisteredClaims{
 		IssuedAt:  j.NewNumericDate(t),
 		ExpiresAt: j.NewNumericDate(t.Add(s.refreshTTL)),

@@ -10,6 +10,7 @@ import (
 
 type TokenClaims struct {
 	UserID uuid.UUID
+	Name   string
 	Role   users.Role
 }
 

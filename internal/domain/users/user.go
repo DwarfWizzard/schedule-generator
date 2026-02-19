@@ -33,13 +33,18 @@ func NewRole(r int8) (Role, error) {
 
 type User struct {
 	ID        uuid.UUID
+	Name      string
 	Username  string
 	Role      Role
 	FacultyID *uuid.UUID
 	PwdHash   string
 }
 
-func NewUser(username string, role Role, facultyID *uuid.UUID, pwdHash string) (*User, error) {
+func NewUser(name, username string, role Role, facultyID *uuid.UUID, pwdHash string) (*User, error) {
+	if len(name) == 0 {
+		return nil, errors.New("empty name")
+	}
+
 	if len(username) == 0 {
 		return nil, errors.New("empty username")
 	}
@@ -50,6 +55,7 @@ func NewUser(username string, role Role, facultyID *uuid.UUID, pwdHash string) (
 
 	u := User{
 		ID:        uuid.New(),
+		Name:      name,
 		Username:  username,
 		PwdHash:   pwdHash,
 		Role:      role,

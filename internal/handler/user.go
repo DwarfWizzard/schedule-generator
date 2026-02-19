@@ -13,22 +13,25 @@ import (
 )
 
 type UserUsecase interface {
-	CreateUser(ctx context.Context, input usecases.CreateUserInput, user *users.User) (*users.User, error)
+	CreateUser(ctx context.Context, input usecases.CreateUserInput, user *users.User) (*usecases.CreateUserOutput, error)
 	UserAuthentication(ctx context.Context, input usecases.UserAuthenticationInput) (services.TokenPair, error)
 	UserAuthorization(ctx context.Context, token string) (*users.User, error)
 	RefreshUserToken(ctx context.Context, refresh string) (services.TokenPair, error)
-	GetUser(ctx context.Context, userID uuid.UUID) (*users.User, error)
-	ListUser(ctx context.Context, user *users.User) ([]users.User, error)
+	GetUser(ctx context.Context, userID uuid.UUID) (*usecases.GetUserOutput, error)
+	ListUser(ctx context.Context, user *users.User) (usecases.ListUserOutput, error)
 }
 
 type User struct {
-	ID        uuid.UUID  `json:"id"`
-	Username  string     `json:"username"`
-	Role      int8       `json:"role"`
-	FacultyID *uuid.UUID `json:"faculty_id,omitempty"`
+	ID          uuid.UUID  `json:"id"`
+	Name        string     `json:"name"`
+	Username    string     `json:"username"`
+	Role        int8       `json:"role"`
+	FacultyID   *uuid.UUID `json:"faculty_id,omitempty"`
+	FacultyName *string    `json:"faculty_name"`
 }
 
 type CreateUserRequest struct {
+	Name      string     `json:"name"`
 	Username  string     `json:"username"`
 	Password  string     `json:"password"`
 	Role      int8       `json:"role"`
@@ -49,16 +52,19 @@ func (h *Handler) CreateUser(c echo.Context) error {
 		return ErrNotParsable
 	}
 
-	newUser, err := h.user.CreateUser(ctx, usecases.CreateUserInput{
-		Username: rq.Username,
-		Password: rq.Password,
+	out, err := h.user.CreateUser(ctx, usecases.CreateUserInput{
+		Name:      rq.Name,
+		Username:  rq.Username,
+		Password:  rq.Password,
+		Role:      rq.Role,
+		FacultyID: rq.FacultyID,
 	}, user)
 	if err != nil {
 		h.logger.Error("Create user error", "error", err)
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, userToView(newUser)).Send(c)
+	return WrapResponse(http.StatusOK, userToView(&out.User, out.FacultyName)).Send(c)
 }
 
 type GetUserRequest struct {
@@ -74,13 +80,13 @@ func (h *Handler) GetUser(c echo.Context) error {
 		return ErrNotParsable
 	}
 
-	user, err := h.user.GetUser(ctx, rq.UserID)
+	out, err := h.user.GetUser(ctx, rq.UserID)
 	if err != nil {
 		h.logger.Error("Get user error", "error", err)
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, userToView(user)).Send(c)
+	return WrapResponse(http.StatusOK, userToView(&out.User, out.FacultyName)).Send(c)
 }
 
 // ListUser - GET /v1/users
@@ -100,17 +106,19 @@ func (h *Handler) ListUser(c echo.Context) error {
 
 	result := make([]*User, len(list))
 	for i, u := range list {
-		result[i] = userToView(&u)
+		result[i] = userToView(&u.User, u.FacultyName)
 	}
 
 	return WrapResponse(http.StatusOK, result).Send(c)
 }
 
-func userToView(user *users.User) *User {
+func userToView(user *users.User, facultyName *string) *User {
 	return &User{
-		ID:        user.ID,
-		FacultyID: user.FacultyID,
-		Username:  user.Username,
-		Role:      int8(user.Role),
+		ID:          user.ID,
+		Name:        user.Name,
+		FacultyID:   user.FacultyID,
+		FacultyName: facultyName,
+		Username:    user.Username,
+		Role:        int8(user.Role),
 	}
 }
