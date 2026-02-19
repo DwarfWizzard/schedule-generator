@@ -10,9 +10,9 @@ import (
 
 func TestCycledSchedule_NewCycledSchedule(t *testing.T) {
 	t.Run("happy-path", func(t *testing.T) {
-		schedule, err := NewCycledSchedule(uuid.New(), 0, time.Now(), time.Now().AddDate(0, 0, 1))
+		schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now().AddDate(0, 0, 1), time.Now().Year(), time.Now().Year())
 		if err != nil {
-			t.Fatal(err)
+			t.Fatal(err.Error())
 		}
 
 		if schedule.Type != ScheduleTypeCycled {
@@ -45,7 +45,7 @@ func TestCycledSchedule_NewCycledSchedule(t *testing.T) {
 
 		for n, c := range cases {
 			t.Run(n, func(t *testing.T) {
-				_, err := NewCycledSchedule(groupID, c.semester, c.startDate, c.endDate)
+				_, err := NewCycledSchedule(groupID, c.semester, c.startDate, c.endDate, time.Now().Year(), time.Now().Year())
 				if err == nil {
 					t.Error("unexpected nil value")
 				}
@@ -203,7 +203,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 
 		for name, suitcase := range suitcases {
 			t.Run(name, func(t *testing.T) {
-				schedule, err := NewCycledSchedule(uuid.New(), 0, time.Now(), time.Now())
+				schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now(), time.Now().Year(), time.Now().Year())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -481,7 +481,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 
 		for name, suitcase := range suitcases {
 			t.Run(name, func(t *testing.T) {
-				schedule, err := NewCycledSchedule(uuid.New(), 0, time.Now(), time.Now().AddDate(0, 0, 1))
+				schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now().AddDate(0, 0, 1), time.Now().Year(), time.Now().Year())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -524,21 +524,34 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 	})
 }
 
-// func TestCycledSchedule_RemoveItem(t *testing.T) {
-// 	suitcases := map[string]struct {
-// 		discipline    string
-// 		teacherID     uuid.UUID
-// 		weekday       time.Weekday
-// 		studentsCount int16
-// 		lessonNumber  int8
-// 		subgroup      int8
-// 		weektype      int8
-// 		lessonType    int8
-// 		classroom     string
-// 		result        *ScheduleItem
-// 		err           error
-// 	}{}
-// }
+func TestScheduleValidate(t *testing.T) {
+	now := time.Date(2026, 2, 19, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name          string
+		semester      int
+		admissionYear int
+		scheduleType  ScheduleType
+		wantErr       bool
+	}{
+		{"valid spring 2026", 2, 2025, ScheduleTypeCycled, false},
+		{"invalid semester", 3, 2025, ScheduleTypeCycled, true},
+		{"future admission", 1, 2027, ScheduleTypeCycled, true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := NewCycledSchedule(uuid.New(), test.semester, time.Now(), time.Now().AddDate(0, 0, 1), test.admissionYear, now.Year())
+			if err != nil {
+				if !test.wantErr {
+					t.Errorf("unexpected error %s", err)
+				}
+			} else if test.wantErr {
+				t.Errorf("expected error, got nil")
+			}
+		})
+	}
+}
 
 func cmpItems(i1, i2 *ScheduleItem) bool {
 	if i1 == nil && i2 == nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -25,6 +26,7 @@ type ScheduleUsecase interface {
 	RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.RemoveItemFromScheduleInput, user *users.User) error
 	ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error
 	ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error
+	UpdateSchedule(ctx context.Context, input usecases.UpdateScheduleInput, user *users.User) (*usecases.UpdateScheduleOutput, error)
 	DeleteSchedule(ctx context.Context, scheduleID uuid.UUID, user *users.User) error
 }
 
@@ -50,8 +52,8 @@ type Schedule struct {
 	EduGroupNumber string         `json:"edu_group_number"`
 	Semester       int            `json:"semester"`
 	Type           string         `json:"type"`
-	StartDate      *time.Time     `json:"start_date"`
-	EndDate        *time.Time     `json:"end_date"`
+	StartDate      *string        `json:"start_date"`
+	EndDate        *string        `json:"end_date"`
 	Items          []ScheduleItem `json:"items"`
 }
 
@@ -213,7 +215,7 @@ func (h *Handler) AddScheduleItem(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
-// AddScheduleItem - PUT /v1/schedules/:id/items
+// UpdateScheduleItem - PUT /v1/schedules/:id/items
 func (h *Handler) UpdateScheduleItem(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -362,6 +364,66 @@ func (h *Handler) DeleteSchedule(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
+type UpdateScheduleRequest struct {
+	Semester  *int    `json:"semester"`
+	StartDate *string `json:"start_date"`
+	EndDate   *string `json:"end_date"`
+}
+
+// UpdateSchedule - PATCH /v1/schedules/:id
+func (h *Handler) UpdateSchedule(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	scheduleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return ErrInvalidInput
+	}
+
+	var rq UpdateScheduleRequest
+	if err := c.Bind(&rq); err != nil {
+		h.logger.Error("Parse request error", "error", err)
+		return ErrNotParsable
+	}
+
+	var startDate, endDate *time.Time
+	if rq.StartDate != nil {
+		if v, err := time.ParseInLocation(time.DateOnly, *rq.StartDate, common.DefaultTimezone); err != nil {
+			return ErrInvalidInput
+		} else {
+			startDate = &v
+		}
+	}
+
+	if rq.EndDate != nil {
+		if v, err := time.ParseInLocation(time.DateOnly, *rq.EndDate, common.DefaultTimezone); err != nil {
+			return ErrInvalidInput
+		} else {
+			endDate = &v
+		}
+
+	}
+
+	log.Println("AAAAAAAAAAAAAAAAAAA", startDate)
+
+	out, err := h.schedule.UpdateSchedule(ctx, usecases.UpdateScheduleInput{
+		ID:        scheduleID,
+		Semester:  rq.Semester,
+		StartDate: startDate,
+		EndDate:   endDate,
+	}, user)
+	if err != nil {
+		h.logger.Error("Get list schedule error", "error", err)
+		return err
+	}
+
+	return WrapResponse(http.StatusOK, scheduleDTOtoView(out.ScheduleDTO, out.EduGroupNumber)).Send(c)
+}
+
 func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule {
 	var items []ScheduleItem
 
@@ -392,14 +454,25 @@ func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule
 		}
 	}
 
+	var startDate, endDate *string
+	if dto.StartDate != nil {
+		d := dto.StartDate.In(common.DefaultTimezone).Format(time.DateOnly)
+		startDate = &d
+	}
+
+	if dto.EndDate != nil {
+		d := dto.EndDate.In(common.DefaultTimezone).Format(time.DateOnly)
+		endDate = &d
+	}
+
 	return Schedule{
 		ID:             dto.ID,
 		EduGroupID:     dto.EduGroupID,
 		EduGroupNumber: eduGroupNumber,
 		Semester:       dto.Semester,
 		Type:           dto.Type.String(),
-		StartDate:      dto.StartDate,
-		EndDate:        dto.EndDate,
+		StartDate:      startDate,
+		EndDate:        endDate,
 		Items:          items,
 	}
 }
