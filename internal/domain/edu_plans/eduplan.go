@@ -13,16 +13,17 @@ type Module struct {
 }
 
 type EduPlan struct {
-	ID          uuid.UUID
-	DirectionID uuid.UUID
-	Profile     string
-	Year        int64
+	ID           uuid.UUID
+	DirectionID  uuid.UUID
+	DepartmentID uuid.UUID
+	Profile      string
+	Year         int64
 
 	Modules []Module
 }
 
 // NewEduPlan
-func NewEduPlan(directionID uuid.UUID, profile string, year int64) (*EduPlan, error) {
+func NewEduPlan(directionID, departmentID uuid.UUID, profile string, year int64) (*EduPlan, error) {
 	if year < 1900 || year > 2999 {
 		return nil, errors.New("invalid year value")
 	}
@@ -32,10 +33,11 @@ func NewEduPlan(directionID uuid.UUID, profile string, year int64) (*EduPlan, er
 	}
 
 	return &EduPlan{
-		ID:          uuid.New(),
-		DirectionID: directionID,
-		Profile:     profile,
-		Year:        year,
+		ID:           uuid.New(),
+		DirectionID:  directionID,
+		DepartmentID: departmentID,
+		Profile:      profile,
+		Year:         year,
 	}, nil
 }
 

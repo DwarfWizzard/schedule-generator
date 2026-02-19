@@ -87,21 +87,21 @@ func (r *Repository) ListDepartmentByFaculty(ctx context.Context, facultyID uuid
 }
 
 // MapDepartmentsByEduDirections
-func (r *Repository) MapDepartmentsByEduDirections(ctx context.Context, directionIDs uuid.UUIDs) (map[uuid.UUID]departments.Department, error) {
-	var dirList []schema.EduDirection
+func (r *Repository) MapDepartmentsByEduPlans(ctx context.Context, planIDs uuid.UUIDs) (map[uuid.UUID]departments.Department, error) {
+	var planList []schema.EduPlan
 
-	err := r.client.WithContext(ctx).Preload("Department").Find(&dirList, directionIDs).Error
+	err := r.client.WithContext(ctx).Preload("Department").Find(&planList, planIDs).Error
 	if err != nil {
 		return nil, err
 	}
 
 	result := make(map[uuid.UUID]departments.Department)
-	for _, dirSchema := range dirList {
-		if dirSchema.Department == nil {
+	for _, planSchema := range planList {
+		if planSchema.Department == nil {
 			continue
 		}
 
-		result[dirSchema.DepartmentID] = *schema.DepartmentFromSchema(dirSchema.Department)
+		result[planSchema.DepartmentID] = *schema.DepartmentFromSchema(planSchema.Department)
 	}
 
 	return result, nil

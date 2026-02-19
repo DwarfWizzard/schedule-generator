@@ -158,11 +158,9 @@ func (h *Handler) DeleteEduDirection(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
-func eduDirectionToView(model *edudirections.EduDirection, departmentName string) EduDirection {
+func eduDirectionToView(model *edudirections.EduDirection) EduDirection {
 	return EduDirection{
-		ID:             model.ID,
-		Name:           model.Name,
-		DepartmentID:   model.DepartmentID,
-		DepartmentName: departmentName,
+		ID:   model.ID,
+		Name: model.Name,
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"schedule-generator/internal/application/services"
+	"schedule-generator/internal/domain/departments"
 	edudirections "schedule-generator/internal/domain/edu_directions"
 	eduplans "schedule-generator/internal/domain/edu_plans"
 	"schedule-generator/internal/domain/users"
@@ -19,8 +20,10 @@ import (
 type EduPlanUsecaseRepo interface {
 	edudirections.Repository
 	eduplans.Repository
+	departments.Repository
 
 	MapEduDirectionByEduPlans(ctx context.Context, plansIDs uuid.UUIDs) (map[uuid.UUID]edudirections.EduDirection, error)
+	MapDepartmentsByEduPlans(ctx context.Context, plansIDs uuid.UUIDs) (map[uuid.UUID]departments.Department, error)
 }
 
 type EduPlanUsecase struct {
@@ -38,14 +41,16 @@ func NewEduPlanUsecase(authSvc *services.AuthorizationService, repo EduPlanUseca
 }
 
 type CreateEduPlanInput struct {
-	DirectionID uuid.UUID
-	Profile     string
-	Year        int64
+	DirectionID  uuid.UUID
+	DepartmentID uuid.UUID
+	Profile      string
+	Year         int64
 }
 
 type CreateEduPlanOutput struct {
 	eduplans.EduPlan
-	DirectionName string
+	DirectionName  string
+	DepartmentName string
 }
 
 // CreateEduPlan
@@ -62,14 +67,24 @@ func (uc *EduPlanUsecase) CreateEduPlan(ctx context.Context, input CreateEduPlan
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	if ok, err := uc.authSvc.HaveAccessToEduDirection(ctx, direction, user); err != nil {
-		logger.Error("Check access to direction error", "error", err)
+	department, err := uc.repo.GetDepartment(ctx, input.DepartmentID)
+	if err != nil {
+		logger.Error("Get department error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("department not found"))
+		}
+
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
-	} else if !ok {
-		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to direction"))
 	}
 
-	eduplan, err := eduplans.NewEduPlan(direction.ID, input.Profile, input.Year)
+	if ok, err := uc.authSvc.HaveAccessToDepartment(ctx, department, user); err != nil {
+		logger.Error("Check access to department error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to department"))
+	}
+
+	eduplan, err := eduplans.NewEduPlan(direction.ID, department.ID, input.Profile, input.Year)
 	if err != nil {
 		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
 	}
@@ -86,14 +101,16 @@ func (uc *EduPlanUsecase) CreateEduPlan(ctx context.Context, input CreateEduPlan
 	}
 
 	return &CreateEduPlanOutput{
-		EduPlan:       *eduplan,
-		DirectionName: direction.Name,
+		EduPlan:        *eduplan,
+		DirectionName:  direction.Name,
+		DepartmentName: department.Name,
 	}, nil
 }
 
 type GetEduPlanOutput struct {
 	eduplans.EduPlan
-	DirectionName string
+	DirectionName  string
+	DepartmentName string
 }
 
 // GetEduPlan
@@ -123,9 +140,20 @@ func (uc *EduPlanUsecase) GetEduPlan(ctx context.Context, eduplanID uuid.UUID, u
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	department, err := uc.repo.GetDepartment(ctx, eduplan.DepartmentID)
+	if err != nil {
+		logger.Error("Get department error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("department not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
 	return &GetEduPlanOutput{
-		EduPlan:       *eduplan,
-		DirectionName: direction.Name,
+		EduPlan:        *eduplan,
+		DirectionName:  direction.Name,
+		DepartmentName: department.Name,
 	}, nil
 }
 
@@ -162,6 +190,12 @@ func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context, user *users.User) ([]
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
+	departments, err := uc.repo.MapDepartmentsByEduPlans(ctx, planIDs)
+	if err != nil {
+		logger.Error("Map departments error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
 	result := make([]GetEduPlanOutput, len(plans))
 
 	for i, plan := range plans {
@@ -171,9 +205,16 @@ func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context, user *users.User) ([]
 			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 		}
 
+		department, ok := departments[plan.DirectionID]
+		if !ok {
+			logger.Error(fmt.Sprintf("Department for edu plan %s not found", plan.ID))
+			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+		}
+
 		result[i] = GetEduPlanOutput{
-			EduPlan:       plan,
-			DirectionName: direction.Name,
+			EduPlan:        plan,
+			DirectionName:  direction.Name,
+			DepartmentName: department.Name,
 		}
 	}
 

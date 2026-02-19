@@ -7,21 +7,19 @@ import (
 )
 
 type EduDirection struct {
-	ID           uuid.UUID
-	Name         string
-	DepartmentID uuid.UUID
+	ID   uuid.UUID
+	Name string
 }
 
 // NewEduDirection
-func NewEduDirection(departmentID uuid.UUID, name string) (*EduDirection, error) {
+func NewEduDirection(name string) (*EduDirection, error) {
 	if len(name) == 0 {
 		return nil, errors.New("invalid name value")
 	}
 
 	return &EduDirection{
-		ID:           uuid.New(),
-		Name:         name,
-		DepartmentID: departmentID,
+		ID:   uuid.New(),
+		Name: name,
 	}, nil
 }
 

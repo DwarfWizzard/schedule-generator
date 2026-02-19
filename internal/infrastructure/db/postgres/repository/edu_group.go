@@ -50,7 +50,7 @@ func (r *Repository) GetEduGroup(ctx context.Context, id uuid.UUID) (*edugroups.
 // GetEduGroupFacultyID
 func (r *Repository) GetEduGroupFacultyID(ctx context.Context, groupID uuid.UUID) (uuid.UUID, error) {
 	var s schema.EduGroup
-	err := r.client.WithContext(ctx).Preload("EduPlan.Direction.Department").Preload(clause.Associations).Where("id = ?", groupID).First(&s).Error
+	err := r.client.WithContext(ctx).Preload("EduPlan.Department").Preload(clause.Associations).Where("id = ?", groupID).First(&s).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return uuid.UUID{}, db.ErrorNotFound
@@ -59,7 +59,7 @@ func (r *Repository) GetEduGroupFacultyID(ctx context.Context, groupID uuid.UUID
 		return uuid.UUID{}, err
 	}
 
-	return s.EduPlan.Direction.Department.FacultyID, nil
+	return s.EduPlan.Department.FacultyID, nil
 }
 
 // GetEduGroupByNumber
