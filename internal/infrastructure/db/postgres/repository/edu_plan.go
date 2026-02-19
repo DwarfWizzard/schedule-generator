@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SaveEduPlan
@@ -46,10 +47,45 @@ func (r *Repository) GetEduPlan(ctx context.Context, id uuid.UUID) (*eduplans.Ed
 	return schema.EduPlanFromSchema(&s), nil
 }
 
+// GetEduPlanFacultyID
+func (r *Repository) GetEduPlanFacultyID(ctx context.Context, planID uuid.UUID) (uuid.UUID, error) {
+	var s schema.EduPlan
+	err := r.client.WithContext(ctx).Preload("Direction.Department").Preload(clause.Associations).Where("id = ?", planID).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return uuid.UUID{}, db.ErrorNotFound
+		}
+
+		return uuid.UUID{}, err
+	}
+
+	return s.Direction.Department.FacultyID, nil
+}
+
 // ListEduPlan
 func (r *Repository) ListEduPlan(ctx context.Context) ([]eduplans.EduPlan, error) {
 	var list []schema.EduPlan
 	err := r.client.WithContext(ctx).Joins("Direction").Order(`"Direction".name, direction_id, year ASC`).Find(&list).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, db.ErrorNotFound
+		}
+
+		return nil, err
+	}
+
+	result := make([]eduplans.EduPlan, len(list))
+	for i, v := range list {
+		result[i] = *schema.EduPlanFromSchema(&v)
+	}
+
+	return result, nil
+}
+
+// ListEduPlan
+func (r *Repository) ListEduPlanByFaculty(ctx context.Context, facultyID uuid.UUID) ([]eduplans.EduPlan, error) {
+	var list []schema.EduPlan
+	err := r.client.WithContext(ctx).Joins("Direction.Department").Where(`"Direction__Department".faculty_id = ?`, facultyID).Order("direction_id, year ASC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

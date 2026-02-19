@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/domain/departments"
 	edudirections "schedule-generator/internal/domain/edu_directions"
+	"schedule-generator/internal/domain/users"
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
 
@@ -22,14 +24,16 @@ type EduDirectionUsecaseRepo interface {
 }
 
 type EduDirectionUsecase struct {
-	repo   EduDirectionUsecaseRepo
-	logger *slog.Logger
+	repo    EduDirectionUsecaseRepo
+	authSvc *services.AuthorizationService
+	logger  *slog.Logger
 }
 
-func NewEduDirectionUsecase(repo EduDirectionUsecaseRepo, logger *slog.Logger) *EduDirectionUsecase {
+func NewEduDirectionUsecase(authSvc *services.AuthorizationService, repo EduDirectionUsecaseRepo, logger *slog.Logger) *EduDirectionUsecase {
 	return &EduDirectionUsecase{
-		repo:   repo,
-		logger: logger,
+		repo:    repo,
+		authSvc: authSvc,
+		logger:  logger,
 	}
 }
 
@@ -44,7 +48,7 @@ type CreateEduDirectionOutput struct {
 }
 
 // CreateEduDirection
-func (uc *EduDirectionUsecase) CreateEduDirection(ctx context.Context, input CreateEduDirectionInput) (*CreateEduDirectionOutput, error) {
+func (uc *EduDirectionUsecase) CreateEduDirection(ctx context.Context, input CreateEduDirectionInput, user *users.User) (*CreateEduDirectionOutput, error) {
 	logger := uc.logger
 
 	department, err := uc.repo.GetDepartment(ctx, input.DepartmentID)
@@ -55,6 +59,13 @@ func (uc *EduDirectionUsecase) CreateEduDirection(ctx context.Context, input Cre
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToDepartment(ctx, department, user); err != nil {
+		logger.Error("Check access to department error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to department"))
 	}
 
 	direction, err := edudirections.NewEduDirection(department.ID, input.Name)
@@ -80,7 +91,7 @@ type GetEduDirectionOutput struct {
 }
 
 // GetEduDirection
-func (uc *EduDirectionUsecase) GetEduDirection(ctx context.Context, directionID uuid.UUID) (*GetEduDirectionOutput, error) {
+func (uc *EduDirectionUsecase) GetEduDirection(ctx context.Context, directionID uuid.UUID, user *users.User) (*GetEduDirectionOutput, error) {
 	logger := uc.logger
 
 	direction, err := uc.repo.GetEduDirection(ctx, directionID)
@@ -91,6 +102,13 @@ func (uc *EduDirectionUsecase) GetEduDirection(ctx context.Context, directionID 
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduDirection(ctx, direction, user); err != nil {
+		logger.Error("Check access to direction error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to direction"))
 	}
 
 	department, err := uc.repo.GetDepartment(ctx, direction.DepartmentID)
@@ -106,12 +124,24 @@ func (uc *EduDirectionUsecase) GetEduDirection(ctx context.Context, directionID 
 }
 
 // ListEduDirection
-func (uc *EduDirectionUsecase) ListEduDirection(ctx context.Context) ([]GetEduDirectionOutput, error) {
+func (uc *EduDirectionUsecase) ListEduDirection(ctx context.Context, user *users.User) ([]GetEduDirectionOutput, error) {
 	logger := uc.logger
 
-	directions, err := uc.repo.ListEduDirection(ctx)
-	if err != nil {
-		logger.Error("List edu direction error", "error", err)
+	var directions []edudirections.EduDirection
+	var listErr error
+
+	if uc.authSvc.IsAdmin(user) {
+		directions, listErr = uc.repo.ListEduDirection(ctx)
+	} else {
+		if user.FacultyID == nil {
+			return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user not accociated with any faculty"))
+		}
+
+		directions, listErr = uc.repo.ListEduDirectionByFaculty(ctx, *user.FacultyID)
+	}
+
+	if listErr != nil {
+		logger.Error("List edu direction error", "error", listErr)
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
@@ -154,7 +184,7 @@ type UpdateEduDirectionOutput struct {
 }
 
 // UpdateEduDirection
-func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input UpdateEduDirectionInput) (*UpdateEduDirectionOutput, error) {
+func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input UpdateEduDirectionInput, user *users.User) (*UpdateEduDirectionOutput, error) {
 	logger := uc.logger
 
 	direction, err := uc.repo.GetEduDirection(ctx, input.EduDirectionID)
@@ -165,6 +195,13 @@ func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input Upd
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduDirection(ctx, direction, user); err != nil {
+		logger.Error("Check access to direction error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to direction"))
 	}
 
 	department, err := uc.repo.GetDepartment(ctx, direction.DepartmentID)
@@ -202,10 +239,27 @@ func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input Upd
 }
 
 // DeleteEduDirection
-func (uc *EduDirectionUsecase) DeleteEduDirection(ctx context.Context, directionID uuid.UUID) error {
+func (uc *EduDirectionUsecase) DeleteEduDirection(ctx context.Context, directionID uuid.UUID, user *users.User) error {
 	logger := uc.logger
 
-	err := uc.repo.DeleteEduDirection(ctx, directionID)
+	direction, err := uc.repo.GetEduDirection(ctx, directionID)
+	if err != nil {
+		logger.Error("List edu direction error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("edu direction not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduDirection(ctx, direction, user); err != nil {
+		logger.Error("Check access to direction error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to direction"))
+	}
+
+	err = uc.repo.DeleteEduDirection(ctx, directionID)
 	if err != nil {
 		logger.Error("Delete edu direction error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)

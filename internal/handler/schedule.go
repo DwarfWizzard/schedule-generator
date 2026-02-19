@@ -10,21 +10,22 @@ import (
 
 	"schedule-generator/internal/application/usecases"
 	"schedule-generator/internal/common"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type ScheduleUsecase interface {
-	CreateSchedule(ctx context.Context, input usecases.CreateScheduleInput) (*usecases.CreateScheduleOutput, error)
-	ListSchedule(ctx context.Context) (usecases.ListScheduleOutput, error)
-	GetSchedule(ctx context.Context, scheduleID uuid.UUID) (*usecases.GetScheduleOutput, error)
-	AddItemsToSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.AddItemToScheduleInput) error
-	UpdateItemInSchedule(ctx context.Context, scheduleID uuid.UUID, input usecases.AddItemToScheduleInput) error
-	RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.RemoveItemFromScheduleInput) error
-	ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error
-	ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error
-	DeleteSchedule(ctx context.Context, scheduleID uuid.UUID) error
+	CreateSchedule(ctx context.Context, input usecases.CreateScheduleInput, user *users.User) (*usecases.CreateScheduleOutput, error)
+	ListSchedule(ctx context.Context, user *users.User) (usecases.ListScheduleOutput, error)
+	GetSchedule(ctx context.Context, scheduleID uuid.UUID, user *users.User) (*usecases.GetScheduleOutput, error)
+	AddItemsToSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.AddItemToScheduleInput, user *users.User) error
+	UpdateItemInSchedule(ctx context.Context, scheduleID uuid.UUID, input usecases.AddItemToScheduleInput, user *users.User) error
+	RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.RemoveItemFromScheduleInput, user *users.User) error
+	ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error
+	ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error
+	DeleteSchedule(ctx context.Context, scheduleID uuid.UUID, user *users.User) error
 }
 
 type ScheduleItem struct {
@@ -70,6 +71,11 @@ type CreateScheduleResponse struct {
 func (h *Handler) CreateSchedule(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq CreateScheduleRequest
 	if err := c.Bind(&rq); err != nil {
 		h.logger.Error("Parse request error", "error", err)
@@ -94,7 +100,7 @@ func (h *Handler) CreateSchedule(c echo.Context) error {
 		Semester:   rq.Semester,
 		StartDate:  startDate,
 		EndDate:    endDate,
-	})
+	}, user)
 	if err != nil {
 		h.logger.Error("Create schedule error", "error", err)
 		return err
@@ -107,7 +113,12 @@ func (h *Handler) CreateSchedule(c echo.Context) error {
 func (h *Handler) ListSchedule(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	list, err := h.schedule.ListSchedule(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	list, err := h.schedule.ListSchedule(ctx, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -126,12 +137,17 @@ func (h *Handler) ListSchedule(c echo.Context) error {
 func (h *Handler) GetSchedule(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	scheduleID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	out, err := h.schedule.GetSchedule(ctx, scheduleID)
+	out, err := h.schedule.GetSchedule(ctx, scheduleID, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -155,6 +171,11 @@ type AddScheduleItemRequest struct {
 // AddScheduleItem - POST /v1/schedules/:id/items
 func (h *Handler) AddScheduleItem(c echo.Context) error {
 	ctx := c.Request().Context()
+
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
 
 	var rq []AddScheduleItemRequest
 	if err := c.Bind(&rq); err != nil {
@@ -183,7 +204,7 @@ func (h *Handler) AddScheduleItem(c echo.Context) error {
 		}
 	}
 
-	err = h.schedule.AddItemsToSchedule(ctx, scheduleID, input)
+	err = h.schedule.AddItemsToSchedule(ctx, scheduleID, input, user)
 	if err != nil {
 		h.logger.Error("Add items to schedule error", "error", err)
 		return err
@@ -195,6 +216,11 @@ func (h *Handler) AddScheduleItem(c echo.Context) error {
 // AddScheduleItem - PUT /v1/schedules/:id/items
 func (h *Handler) UpdateScheduleItem(c echo.Context) error {
 	ctx := c.Request().Context()
+
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
 
 	var rq *AddScheduleItemRequest
 	if err := c.Bind(&rq); err != nil {
@@ -219,7 +245,7 @@ func (h *Handler) UpdateScheduleItem(c echo.Context) error {
 		CabinetID:     rq.CabinetID,
 	}
 
-	err = h.schedule.UpdateItemInSchedule(ctx, scheduleID, input)
+	err = h.schedule.UpdateItemInSchedule(ctx, scheduleID, input, user)
 	if err != nil {
 		h.logger.Error("Add items to schedule error", "error", err)
 		return err
@@ -238,6 +264,11 @@ type RemoveScheduleItemRequest struct {
 // RemoveScheduleItem - DELETE /v1/schedules/:id/items
 func (h *Handler) RemoveScheduleItem(c echo.Context) error {
 	ctx := c.Request().Context()
+
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
 
 	var rq []RemoveScheduleItemRequest
 	if err := c.Bind(&rq); err != nil {
@@ -261,7 +292,7 @@ func (h *Handler) RemoveScheduleItem(c echo.Context) error {
 		}
 	}
 
-	err = h.schedule.RemoveItemsFromSchedule(ctx, scheduleID, input)
+	err = h.schedule.RemoveItemsFromSchedule(ctx, scheduleID, input, user)
 	if err != nil {
 		h.logger.Error("Remove items from schedule error", "error", err)
 		return err
@@ -280,6 +311,11 @@ type ExportScheduleRequest struct {
 func (h *Handler) ExportSchedule(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq ExportScheduleRequest
 	if err := c.Bind(&rq); err != nil {
 		h.logger.Error("Parse request error", "error", err)
@@ -290,9 +326,9 @@ func (h *Handler) ExportSchedule(c echo.Context) error {
 
 	var exportErr error
 	if rq.AsCalendar {
-		exportErr = h.schedule.ExportCycledScheduleAsCalendar(ctx, rq.ScheduleID, rq.Format, buffer)
+		exportErr = h.schedule.ExportCycledScheduleAsCalendar(ctx, rq.ScheduleID, rq.Format, buffer, user)
 	} else {
-		exportErr = h.schedule.ExportSchedule(ctx, rq.ScheduleID, rq.Format, buffer)
+		exportErr = h.schedule.ExportSchedule(ctx, rq.ScheduleID, rq.Format, buffer, user)
 	}
 
 	if exportErr != nil {
@@ -309,12 +345,17 @@ func (h *Handler) ExportSchedule(c echo.Context) error {
 func (h *Handler) DeleteSchedule(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	scheduleID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	if err := h.schedule.DeleteSchedule(ctx, scheduleID); err != nil {
+	if err := h.schedule.DeleteSchedule(ctx, scheduleID, user); err != nil {
 		return err
 	}
 

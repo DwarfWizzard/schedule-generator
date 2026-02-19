@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/domain/departments"
 	"schedule-generator/internal/domain/teachers"
+	"schedule-generator/internal/domain/users"
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
 
@@ -20,14 +22,16 @@ type TeacherUsecaseRepo interface {
 }
 
 type TeacherUsecase struct {
-	repo   TeacherUsecaseRepo
-	logger *slog.Logger
+	repo    TeacherUsecaseRepo
+	authSvc *services.AuthorizationService
+	logger  *slog.Logger
 }
 
-func NewTeacherUsecase(repo TeacherUsecaseRepo, logger *slog.Logger) *TeacherUsecase {
+func NewTeacherUsecase(authSvc *services.AuthorizationService, repo TeacherUsecaseRepo, logger *slog.Logger) *TeacherUsecase {
 	return &TeacherUsecase{
-		repo:   repo,
-		logger: logger,
+		repo:    repo,
+		authSvc: authSvc,
+		logger:  logger,
 	}
 }
 
@@ -44,8 +48,12 @@ type CreateTeacherOutput struct {
 }
 
 // CreateTeacher
-func (uc *TeacherUsecase) CreateTeacher(ctx context.Context, input CreateTeacherInput) (*CreateTeacherOutput, error) {
+func (uc *TeacherUsecase) CreateTeacher(ctx context.Context, input CreateTeacherInput, user *users.User) (*CreateTeacherOutput, error) {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	department, err := uc.repo.GetDepartment(ctx, input.DepartmentID)
 	if err != nil {
@@ -78,7 +86,7 @@ type GetTeacherOutput struct {
 }
 
 // GetTeacher
-func (uc *TeacherUsecase) GetTeacher(ctx context.Context, teacherID uuid.UUID) (*GetTeacherOutput, error) {
+func (uc *TeacherUsecase) GetTeacher(ctx context.Context, teacherID uuid.UUID, user *users.User) (*GetTeacherOutput, error) {
 	logger := uc.logger
 
 	teacher, err := uc.repo.GetTeacher(ctx, teacherID)
@@ -97,7 +105,7 @@ func (uc *TeacherUsecase) GetTeacher(ctx context.Context, teacherID uuid.UUID) (
 }
 
 // ListTeacher
-func (uc *TeacherUsecase) ListTeacher(ctx context.Context) ([]GetTeacherOutput, error) {
+func (uc *TeacherUsecase) ListTeacher(ctx context.Context, user *users.User) ([]GetTeacherOutput, error) {
 	logger := uc.logger
 
 	teachers, err := uc.repo.ListTeacher(ctx)
@@ -130,8 +138,12 @@ type UpdateTeacherOutput struct {
 }
 
 // UpdateTeacher
-func (uc *TeacherUsecase) UpdateTeacher(ctx context.Context, input UpdateTeacherInput) (*UpdateTeacherOutput, error) {
+func (uc *TeacherUsecase) UpdateTeacher(ctx context.Context, input UpdateTeacherInput, user *users.User) (*UpdateTeacherOutput, error) {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	teacher, err := uc.repo.GetTeacher(ctx, input.TeacherID)
 	if err != nil {
@@ -181,8 +193,12 @@ func (uc *TeacherUsecase) UpdateTeacher(ctx context.Context, input UpdateTeacher
 }
 
 // DeleteTeacher
-func (uc *TeacherUsecase) DeleteTeacher(ctx context.Context, teacherID uuid.UUID) error {
+func (uc *TeacherUsecase) DeleteTeacher(ctx context.Context, teacherID uuid.UUID, user *users.User) error {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	err := uc.repo.DeleteTeacher(ctx, teacherID)
 	if err != nil {

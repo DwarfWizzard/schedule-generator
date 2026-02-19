@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/domain/departments"
 	"schedule-generator/internal/domain/faculties"
+	"schedule-generator/internal/domain/users"
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
 
@@ -22,14 +24,16 @@ type DepartmentUsecaseRepo interface {
 }
 
 type DepartmentUsecase struct {
-	repo   DepartmentUsecaseRepo
-	logger *slog.Logger
+	repo    DepartmentUsecaseRepo
+	authSvc *services.AuthorizationService
+	logger  *slog.Logger
 }
 
-func NewDepartmentUsecase(repo DepartmentUsecaseRepo, logger *slog.Logger) *DepartmentUsecase {
+func NewDepartmentUsecase(authSvc *services.AuthorizationService, repo DepartmentUsecaseRepo, logger *slog.Logger) *DepartmentUsecase {
 	return &DepartmentUsecase{
-		repo:   repo,
-		logger: logger,
+		authSvc: authSvc,
+		repo:    repo,
+		logger:  logger,
 	}
 }
 
@@ -45,7 +49,7 @@ type CreateDepartmentOutput struct {
 }
 
 // CreateDepartment
-func (uc *DepartmentUsecase) CreateDepartment(ctx context.Context, input CreateDepartmentInput) (*CreateDepartmentOutput, error) {
+func (uc *DepartmentUsecase) CreateDepartment(ctx context.Context, input CreateDepartmentInput, user *users.User) (*CreateDepartmentOutput, error) {
 	logger := uc.logger
 
 	faculty, err := uc.repo.GetFaculty(ctx, input.FacultyID)
@@ -56,6 +60,13 @@ func (uc *DepartmentUsecase) CreateDepartment(ctx context.Context, input CreateD
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToFaculty(ctx, faculty, user); err != nil {
+		logger.Error("Check access to faculty error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces faculty"))
 	}
 
 	department, err := departments.NewDepartment(faculty.ID, input.ExternalID, input.Name)
@@ -87,7 +98,7 @@ type GetDepartmentOutput struct {
 }
 
 // GetDepartment
-func (uc *DepartmentUsecase) GetDepartment(ctx context.Context, departmentID uuid.UUID) (*GetDepartmentOutput, error) {
+func (uc *DepartmentUsecase) GetDepartment(ctx context.Context, departmentID uuid.UUID, user *users.User) (*GetDepartmentOutput, error) {
 	logger := uc.logger
 
 	department, err := uc.repo.GetDepartment(ctx, departmentID)
@@ -98,6 +109,13 @@ func (uc *DepartmentUsecase) GetDepartment(ctx context.Context, departmentID uui
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToDepartment(ctx, department, user); err != nil {
+		logger.Error("Check access to department error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to department"))
 	}
 
 	faculty, err := uc.repo.GetFaculty(ctx, department.FacultyID)
@@ -115,12 +133,24 @@ func (uc *DepartmentUsecase) GetDepartment(ctx context.Context, departmentID uui
 type ListDepartmentOutput = []GetDepartmentOutput
 
 // ListDepartment
-func (uc *DepartmentUsecase) ListDepartment(ctx context.Context) (ListDepartmentOutput, error) {
+func (uc *DepartmentUsecase) ListDepartment(ctx context.Context, user *users.User) (ListDepartmentOutput, error) {
 	logger := uc.logger
 
-	departments, err := uc.repo.ListDepartment(ctx)
-	if err != nil {
-		logger.Error("List department error", "error", err)
+	var departments []departments.Department
+	var listErr error
+
+	if uc.authSvc.IsAdmin(user) {
+		departments, listErr = uc.repo.ListDepartment(ctx)
+	} else {
+		if user.FacultyID == nil {
+			return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user not accociated with any faculty"))
+		}
+
+		departments, listErr = uc.repo.ListDepartmentByFaculty(ctx, *user.FacultyID)
+	}
+
+	if listErr != nil {
+		logger.Error("List department error", "error", listErr)
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
@@ -165,7 +195,7 @@ type UpdateDepartmentOutput struct {
 }
 
 // UpdateDepartment
-func (uc *DepartmentUsecase) UpdateDepartment(ctx context.Context, input UpdateDepartmentInput) (*UpdateDepartmentOutput, error) {
+func (uc *DepartmentUsecase) UpdateDepartment(ctx context.Context, input UpdateDepartmentInput, user *users.User) (*UpdateDepartmentOutput, error) {
 	logger := uc.logger
 
 	department, err := uc.repo.GetDepartment(ctx, input.DepartmentID)
@@ -176,6 +206,13 @@ func (uc *DepartmentUsecase) UpdateDepartment(ctx context.Context, input UpdateD
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToDepartment(ctx, department, user); err != nil {
+		logger.Error("Check access to department error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to department"))
 	}
 
 	faculty, err := uc.repo.GetFaculty(ctx, department.FacultyID)
@@ -215,10 +252,27 @@ func (uc *DepartmentUsecase) UpdateDepartment(ctx context.Context, input UpdateD
 }
 
 // DeleteDepartment
-func (uc *DepartmentUsecase) DeleteDepartment(ctx context.Context, departmentID uuid.UUID) error {
+func (uc *DepartmentUsecase) DeleteDepartment(ctx context.Context, departmentID uuid.UUID, user *users.User) error {
 	logger := uc.logger
 
-	err := uc.repo.DeleteDepartment(ctx, departmentID)
+	department, err := uc.repo.GetDepartment(ctx, departmentID)
+	if err != nil {
+		logger.Error("List department error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("department not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToDepartment(ctx, department, user); err != nil {
+		logger.Error("Check access to department error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to department"))
+	}
+
+	err = uc.repo.DeleteDepartment(ctx, departmentID)
 	if err != nil {
 		logger.Error("Delete edu department error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)

@@ -6,17 +6,18 @@ import (
 
 	"schedule-generator/internal/application/usecases"
 	edudirections "schedule-generator/internal/domain/edu_directions"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type EduDirectionUsecase interface {
-	CreateEduDirection(ctx context.Context, input usecases.CreateEduDirectionInput) (*usecases.CreateEduDirectionOutput, error)
-	GetEduDirection(ctx context.Context, directionID uuid.UUID) (*usecases.GetEduDirectionOutput, error)
-	ListEduDirection(ctx context.Context) ([]usecases.GetEduDirectionOutput, error)
-	UpdateEduDirection(ctx context.Context, input usecases.UpdateEduDirectionInput) (*usecases.UpdateEduDirectionOutput, error)
-	DeleteEduDirection(ctx context.Context, directionID uuid.UUID) error
+	CreateEduDirection(ctx context.Context, input usecases.CreateEduDirectionInput, user *users.User) (*usecases.CreateEduDirectionOutput, error)
+	GetEduDirection(ctx context.Context, directionID uuid.UUID, user *users.User) (*usecases.GetEduDirectionOutput, error)
+	ListEduDirection(ctx context.Context, user *users.User) ([]usecases.GetEduDirectionOutput, error)
+	UpdateEduDirection(ctx context.Context, input usecases.UpdateEduDirectionInput, user *users.User) (*usecases.UpdateEduDirectionOutput, error)
+	DeleteEduDirection(ctx context.Context, directionID uuid.UUID, user *users.User) error
 }
 
 type EduDirection struct {
@@ -38,6 +39,11 @@ type UpdateEduDirectionRequest struct {
 func (h *Handler) CreateEduDirection(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq CreateEduDirectionRequest
 	if err := c.Bind(&rq); err != nil {
 		h.logger.Error("Parse request error", "error", err)
@@ -47,7 +53,7 @@ func (h *Handler) CreateEduDirection(c echo.Context) error {
 	out, err := h.eduDirection.CreateEduDirection(ctx, usecases.CreateEduDirectionInput{
 		Name:         rq.Name,
 		DepartmentID: rq.DepartmentID,
-	})
+	}, user)
 	if err != nil {
 		h.logger.Error("Create edu direction error", "error", err)
 		return err
@@ -59,12 +65,17 @@ func (h *Handler) CreateEduDirection(c echo.Context) error {
 func (h *Handler) GetEduDirection(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	directionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	out, err := h.eduDirection.GetEduDirection(ctx, directionID)
+	out, err := h.eduDirection.GetEduDirection(ctx, directionID, user)
 	if err != nil {
 		h.logger.Error("Get edu direction error", "error", err)
 		return err
@@ -76,7 +87,12 @@ func (h *Handler) GetEduDirection(c echo.Context) error {
 func (h *Handler) ListEduDirection(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	out, err := h.eduDirection.ListEduDirection(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	out, err := h.eduDirection.ListEduDirection(ctx, user)
 	if err != nil {
 		h.logger.Error("List edu direction error", "error", err)
 		return err
@@ -93,6 +109,11 @@ func (h *Handler) ListEduDirection(c echo.Context) error {
 func (h *Handler) UpdateEduDirection(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	directionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
@@ -107,7 +128,7 @@ func (h *Handler) UpdateEduDirection(c echo.Context) error {
 	out, err := h.eduDirection.UpdateEduDirection(ctx, usecases.UpdateEduDirectionInput{
 		EduDirectionID: directionID,
 		Name:           rq.Name,
-	})
+	}, user)
 	if err != nil {
 		h.logger.Error("Update edu direction error", "error", err)
 		return err
@@ -119,12 +140,17 @@ func (h *Handler) UpdateEduDirection(c echo.Context) error {
 func (h *Handler) DeleteEduDirection(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	directionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	if err := h.eduDirection.DeleteEduDirection(ctx, directionID); err != nil {
+	if err := h.eduDirection.DeleteEduDirection(ctx, directionID, user); err != nil {
 		h.logger.Error("Delete edu direction error", "error", err)
 		return err
 	}

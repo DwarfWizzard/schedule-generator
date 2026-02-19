@@ -5,13 +5,14 @@ import (
 	"net/http"
 
 	"schedule-generator/internal/application/usecases"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type FacultyUsecase interface {
-	ListFaculty(ctx context.Context) (usecases.ListFacultyOutput, error)
+	ListFaculty(ctx context.Context, user *users.User) (usecases.ListFacultyOutput, error)
 }
 
 type Faculty struct {
@@ -23,7 +24,12 @@ type Faculty struct {
 func (h *Handler) ListFaculty(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	out, err := h.faculty.ListFaculty(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	out, err := h.faculty.ListFaculty(ctx, user)
 	if err != nil {
 		return err
 	}

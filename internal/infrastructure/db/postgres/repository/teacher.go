@@ -46,6 +46,21 @@ func (r *Repository) GetTeacher(ctx context.Context, id uuid.UUID) (*teachers.Te
 	return schema.TeacherFromSchema(&s), nil
 }
 
+// GetTeacherFacultyID
+func (r *Repository) GetTeacherFacultyID(ctx context.Context, teacherID uuid.UUID) (uuid.UUID, error) {
+	var s schema.Teacher
+	err := r.client.WithContext(ctx).Preload("Department").Where("id = ?", teacherID).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return uuid.UUID{}, db.ErrorNotFound
+		}
+
+		return uuid.UUID{}, err
+	}
+
+	return s.Department.FacultyID, nil
+}
+
 // ListTeacher
 func (r *Repository) ListTeacher(ctx context.Context) ([]teachers.Teacher, error) {
 	var list []schema.Teacher

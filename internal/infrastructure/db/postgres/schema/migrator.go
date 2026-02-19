@@ -29,6 +29,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 	}()
 
 	err := tx.AutoMigrate(
+		&User{},
 		&Faculty{},
 		&Department{},
 		&EduDirection{},

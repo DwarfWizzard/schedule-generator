@@ -10,5 +10,6 @@ type Repository interface {
 	SaveDepartment(ctx context.Context, d *Department) error
 	GetDepartment(ctx context.Context, id uuid.UUID) (*Department, error)
 	ListDepartment(ctx context.Context) ([]Department, error)
+	ListDepartmentByFaculty(ctx context.Context, facultyID uuid.UUID) ([]Department, error)
 	DeleteDepartment(ctx context.Context, id uuid.UUID) error
 }

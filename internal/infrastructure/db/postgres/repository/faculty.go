@@ -104,6 +104,27 @@ func (r *Repository) MapFacultiesByCabinets(ctx context.Context, cabinetIDs uuid
 	return result, nil
 }
 
+// MapFacultiesByUsers
+func (r *Repository) MapFacultiesByUsers(ctx context.Context, userIDs uuid.UUIDs) (map[uuid.UUID]faculties.Faculty, error) {
+	var userList []schema.User
+
+	err := r.client.WithContext(ctx).Preload("Faculty").Find(&userList, userIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]faculties.Faculty)
+	for _, userSchema := range userList {
+		if userSchema.Faculty == nil || userSchema.Faculty == nil {
+			continue
+		}
+
+		result[*userSchema.FacultyID] = *schema.FacultyFromSchema(userSchema.Faculty)
+	}
+
+	return result, nil
+}
+
 // DeleteFaculty
 func (r *Repository) DeleteFaculty(ctx context.Context, id uuid.UUID) error {
 	err := r.client.WithContext(ctx).Where("id = ?", id).Delete(&schema.Faculty{}).Error

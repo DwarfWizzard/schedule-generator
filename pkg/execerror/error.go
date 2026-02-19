@@ -11,6 +11,7 @@ const (
 	TypeInvalidInput       = "Invalid Input"
 	TypeProcessingConflict = "Processing Conflict"
 	TypeUnimpemented       = "Unimplemented"
+	TypeForbbiden          = "Forbidden"
 )
 
 type ExecError struct {

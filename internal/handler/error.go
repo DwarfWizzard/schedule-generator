@@ -21,6 +21,8 @@ var (
 	ErrServiceUnavailable  = echo.NewHTTPError(http.StatusServiceUnavailable, "Service unavailable. Try again later.")
 	ErrNotImplemented      = echo.NewHTTPError(http.StatusNotImplemented, "Operation not supproted")
 	ErrUnsupportedFormat   = echo.NewHTTPError(http.StatusNotImplemented, "Format not supproted")
+	ErrUnauthorized        = echo.NewHTTPError(http.StatusUnauthorized, "Unauthorized request")
+	ErrInvalidAuthHeader   = echo.NewHTTPError(http.StatusUnauthorized, "Invalid Authorization header")
 )
 
 var execErrorToApiError = map[execerror.ExecErrorType]*echo.HTTPError{
@@ -28,6 +30,7 @@ var execErrorToApiError = map[execerror.ExecErrorType]*echo.HTTPError{
 	execerror.TypeInvalidInput:       ErrInvalidInput,
 	execerror.TypeProcessingConflict: ErrProcessingConflict,
 	execerror.TypeUnimpemented:       ErrNotImplemented,
+	execerror.TypeForbbiden:          ErrPermissionDenied,
 }
 
 // HttpErrorHandler handles errors that occur while running the API

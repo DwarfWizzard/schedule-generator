@@ -6,16 +6,17 @@ import (
 
 	"schedule-generator/internal/application/usecases"
 	eduplans "schedule-generator/internal/domain/edu_plans"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type EduPlanUsecase interface {
-	CreateEduPlan(ctx context.Context, input usecases.CreateEduPlanInput) (*usecases.CreateEduPlanOutput, error)
-	GetEduPlan(ctx context.Context, eduPlanID uuid.UUID) (*usecases.GetEduPlanOutput, error)
-	ListEduPlan(ctx context.Context) ([]usecases.GetEduPlanOutput, error)
-	DeleteEduPlan(ctx context.Context, eduPlanID uuid.UUID) error
+	CreateEduPlan(ctx context.Context, input usecases.CreateEduPlanInput, user *users.User) (*usecases.CreateEduPlanOutput, error)
+	GetEduPlan(ctx context.Context, eduPlanID uuid.UUID, user *users.User) (*usecases.GetEduPlanOutput, error)
+	ListEduPlan(ctx context.Context, user *users.User) ([]usecases.GetEduPlanOutput, error)
+	DeleteEduPlan(ctx context.Context, eduPlanID uuid.UUID, user *users.User) error
 }
 
 type EduPlan struct {
@@ -37,6 +38,11 @@ type CreateEduPlanRequest struct {
 func (h *Handler) CreateEduPlan(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq CreateEduPlanRequest
 	if err := c.Bind(&rq); err != nil {
 		return ErrNotParsable
@@ -46,7 +52,7 @@ func (h *Handler) CreateEduPlan(c echo.Context) error {
 		DirectionID: rq.DirectionID,
 		Profile:     rq.Profile,
 		Year:        rq.Year,
-	})
+	}, user)
 	if err != nil {
 		return err
 	}
@@ -58,12 +64,17 @@ func (h *Handler) CreateEduPlan(c echo.Context) error {
 func (h *Handler) GetEduPlan(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	eduPlanID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	out, err := h.eduPlan.GetEduPlan(ctx, eduPlanID)
+	out, err := h.eduPlan.GetEduPlan(ctx, eduPlanID, user)
 	if err != nil {
 		return err
 	}
@@ -75,7 +86,12 @@ func (h *Handler) GetEduPlan(c echo.Context) error {
 func (h *Handler) ListEduPlan(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	out, err := h.eduPlan.ListEduPlan(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	out, err := h.eduPlan.ListEduPlan(ctx, user)
 	if err != nil {
 		return err
 	}
@@ -92,12 +108,17 @@ func (h *Handler) ListEduPlan(c echo.Context) error {
 func (h *Handler) DeleteEduPlan(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	eduPlanID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	if err := h.eduPlan.DeleteEduPlan(ctx, eduPlanID); err != nil {
+	if err := h.eduPlan.DeleteEduPlan(ctx, eduPlanID, user); err != nil {
 		return err
 	}
 

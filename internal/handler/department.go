@@ -6,17 +6,18 @@ import (
 
 	"schedule-generator/internal/application/usecases"
 	"schedule-generator/internal/domain/departments"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type DepartmentUsecase interface {
-	CreateDepartment(ctx context.Context, input usecases.CreateDepartmentInput) (*usecases.CreateDepartmentOutput, error)
-	GetDepartment(ctx context.Context, departmentID uuid.UUID) (*usecases.GetDepartmentOutput, error)
-	ListDepartment(ctx context.Context) (usecases.ListDepartmentOutput, error)
-	UpdateDepartment(ctx context.Context, input usecases.UpdateDepartmentInput) (*usecases.UpdateDepartmentOutput, error)
-	DeleteDepartment(ctx context.Context, departmentID uuid.UUID) error
+	CreateDepartment(ctx context.Context, input usecases.CreateDepartmentInput, user *users.User) (*usecases.CreateDepartmentOutput, error)
+	GetDepartment(ctx context.Context, departmentID uuid.UUID, user *users.User) (*usecases.GetDepartmentOutput, error)
+	ListDepartment(ctx context.Context, user *users.User) (usecases.ListDepartmentOutput, error)
+	UpdateDepartment(ctx context.Context, input usecases.UpdateDepartmentInput, user *users.User) (*usecases.UpdateDepartmentOutput, error)
+	DeleteDepartment(ctx context.Context, departmentID uuid.UUID, user *users.User) error
 }
 
 type Department struct {
@@ -37,6 +38,11 @@ type CreateDepartmentRequest struct {
 func (h *Handler) CreateDepartment(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq CreateDepartmentRequest
 	if err := c.Bind(&rq); err != nil {
 		h.logger.Error("Parse request error", "error", err)
@@ -47,7 +53,7 @@ func (h *Handler) CreateDepartment(c echo.Context) error {
 		FacultyID:  rq.FacultyID,
 		ExternalID: rq.ExternalID,
 		Name:       rq.Name,
-	})
+	}, user)
 	if err != nil {
 		h.logger.Error("Create department error", "error", err)
 		return err
@@ -60,12 +66,17 @@ func (h *Handler) CreateDepartment(c echo.Context) error {
 func (h *Handler) GetDepartment(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	departmentID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	out, err := h.department.GetDepartment(ctx, departmentID)
+	out, err := h.department.GetDepartment(ctx, departmentID, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -78,7 +89,12 @@ func (h *Handler) GetDepartment(c echo.Context) error {
 func (h *Handler) ListDepartment(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	out, err := h.department.ListDepartment(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	out, err := h.department.ListDepartment(ctx, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -101,6 +117,11 @@ type UpdateDepartmentRequest struct {
 func (h *Handler) UpdateDepartment(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	departmentID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
@@ -116,7 +137,7 @@ func (h *Handler) UpdateDepartment(c echo.Context) error {
 		DepartmentID: departmentID,
 		ExternalID:   rq.ExternalID,
 		Name:         rq.Name,
-	})
+	}, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -129,12 +150,17 @@ func (h *Handler) UpdateDepartment(c echo.Context) error {
 func (h *Handler) DeleteDepartment(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	departmentID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	err = h.department.DeleteDepartment(ctx, departmentID)
+	err = h.department.DeleteDepartment(ctx, departmentID, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err

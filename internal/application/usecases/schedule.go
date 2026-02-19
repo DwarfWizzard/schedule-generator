@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"schedule-generator/internal/application/acl/exporter"
+	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/domain/cabinets"
 	edugroups "schedule-generator/internal/domain/edu_groups"
 	"schedule-generator/internal/domain/schedules"
 	"schedule-generator/internal/domain/teachers"
+	"schedule-generator/internal/domain/users"
 	"schedule-generator/internal/infrastructure/db"
 	"schedule-generator/pkg/execerror"
 
@@ -35,13 +37,15 @@ type ScheduleUsecaseRepo interface {
 
 type ScheduleUsecase struct {
 	repo     ScheduleUsecaseRepo
+	authSvc  *services.AuthorizationService
 	exporter exporter.Factory
 	logger   *slog.Logger
 }
 
-func NewScheduleUsecase(repo ScheduleUsecaseRepo, exporter exporter.Factory, logger *slog.Logger) *ScheduleUsecase {
+func NewScheduleUsecase(authSvc *services.AuthorizationService, repo ScheduleUsecaseRepo, exporter exporter.Factory, logger *slog.Logger) *ScheduleUsecase {
 	return &ScheduleUsecase{
 		repo:     repo,
+		authSvc:  authSvc,
 		exporter: exporter,
 		logger:   logger,
 	}
@@ -75,7 +79,7 @@ type CreateScheduleOutput struct {
 }
 
 // CreateSchedule
-func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateScheduleInput) (*CreateScheduleOutput, error) {
+func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateScheduleInput, user *users.User) (*CreateScheduleOutput, error) {
 	logger := uc.logger.With("edu_group_id", input.EduGroupID)
 
 	group, err := uc.repo.GetEduGroup(ctx, input.EduGroupID)
@@ -86,6 +90,13 @@ func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateSched
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduGroup(ctx, group, user); err != nil {
+		logger.Error("Check access to group error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu group"))
 	}
 
 	if _, err := uc.repo.GetScheduleByEduGroupIDAndSemester(ctx, input.EduGroupID, input.Semester); err == nil {
@@ -126,7 +137,7 @@ type GetScheduleOutput struct {
 }
 
 // GetSchedule
-func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID) (*GetScheduleOutput, error) {
+func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID, user *users.User) (*GetScheduleOutput, error) {
 	logger := uc.logger
 
 	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
@@ -137,6 +148,13 @@ func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
 	}
 
 	group, err := uc.repo.GetEduGroup(ctx, schedule.EduGroupID)
@@ -174,12 +192,24 @@ func (uc *ScheduleUsecase) GetSchedule(ctx context.Context, scheduleID uuid.UUID
 type ListScheduleOutput = []GetScheduleOutput
 
 // ListSchedule
-func (uc *ScheduleUsecase) ListSchedule(ctx context.Context) (ListScheduleOutput, error) {
+func (uc *ScheduleUsecase) ListSchedule(ctx context.Context, user *users.User) (ListScheduleOutput, error) {
 	logger := uc.logger
 
-	schedules, err := uc.repo.ListSchedule(ctx)
-	if err != nil {
-		logger.Error("Get list schedule error", "error", err)
+	var schedules []schedules.Schedule
+	var listErr error
+
+	if uc.authSvc.IsAdmin(user) {
+		schedules, listErr = uc.repo.ListSchedule(ctx)
+	} else {
+		if user.FacultyID == nil {
+			return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user not accociated with any faculty"))
+		}
+
+		schedules, listErr = uc.repo.ListScheduleByFaculty(ctx, *user.FacultyID)
+	}
+
+	if listErr != nil {
+		logger.Error("Get list schedule error", "error", listErr)
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
@@ -225,7 +255,7 @@ type AddItemToScheduleInput struct {
 }
 
 // AddItemToSchedule
-func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uuid.UUID, input []AddItemToScheduleInput) error {
+func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uuid.UUID, input []AddItemToScheduleInput, user *users.User) error {
 	logger := uc.logger.With("schedule_id", scheduleID)
 
 	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
@@ -241,6 +271,13 @@ func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uu
 	if err != nil {
 		logger.Error("Get schedule error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
 	}
 
 	//TODO: handle calendar schedule
@@ -305,7 +342,7 @@ func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uu
 }
 
 // GetListScheduleItemForSpecifiedDate
-func (uc *ScheduleUsecase) GetListScheduleItemForSpecifiedDate(ctx context.Context, scheduleID uuid.UUID, date time.Time) ([]schedules.ScheduleItem, error) {
+func (uc *ScheduleUsecase) GetListScheduleItemForSpecifiedDate(ctx context.Context, scheduleID uuid.UUID, date time.Time, user *users.User) ([]schedules.ScheduleItem, error) {
 	logger := uc.logger.With("schedule_id", scheduleID, "date", date)
 
 	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
@@ -316,6 +353,13 @@ func (uc *ScheduleUsecase) GetListScheduleItemForSpecifiedDate(ctx context.Conte
 		}
 
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
 	}
 
 	if schedule.Type != schedules.ScheduleTypeCycled {
@@ -342,7 +386,7 @@ func (uc *ScheduleUsecase) GetListScheduleItemForSpecifiedDate(ctx context.Conte
 }
 
 // ExportSchedule
-func (uc *ScheduleUsecase) ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error {
+func (uc *ScheduleUsecase) ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error {
 	logger := uc.logger.With("schedule_id", scheduleID)
 
 	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
@@ -353,6 +397,13 @@ func (uc *ScheduleUsecase) ExportSchedule(ctx context.Context, scheduleID uuid.U
 		}
 
 		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
 	}
 
 	exp, err := uc.exporter.ByFormat(format)
@@ -375,7 +426,7 @@ func (uc *ScheduleUsecase) ExportSchedule(ctx context.Context, scheduleID uuid.U
 }
 
 // ExportCycledScheduleAsCalendar
-func (uc *ScheduleUsecase) ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer) error {
+func (uc *ScheduleUsecase) ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error {
 	logger := uc.logger.With("schedule_id", scheduleID)
 
 	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
@@ -386,6 +437,13 @@ func (uc *ScheduleUsecase) ExportCycledScheduleAsCalendar(ctx context.Context, s
 		}
 
 		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
 	}
 
 	if schedule.Type != schedules.ScheduleTypeCycled {
@@ -434,7 +492,7 @@ type RemoveItemFromScheduleInput struct {
 }
 
 // RemoveItemsFromSchedule
-func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []RemoveItemFromScheduleInput) error {
+func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []RemoveItemFromScheduleInput, user *users.User) error {
 	logger := uc.logger.With("schedule_id", scheduleID)
 
 	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
@@ -454,6 +512,13 @@ func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, schedule
 		}
 
 		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
 	}
 
 	for _, item := range input {
@@ -501,7 +566,7 @@ func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, schedule
 }
 
 // UpdateItemInSchedule
-func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID uuid.UUID, input AddItemToScheduleInput) error {
+func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID uuid.UUID, input AddItemToScheduleInput, user *users.User) error {
 	logger := uc.logger.With("schedule_id", scheduleID)
 
 	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
@@ -521,6 +586,13 @@ func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID 
 		}
 
 		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
 	}
 
 	cabinet, err := repo.GetCabinet(ctx, input.CabinetID)
@@ -609,10 +681,27 @@ func (uc *ScheduleUsecase) UpdateItemInSchedule(ctx context.Context, scheduleID 
 }
 
 // DeleteSchedule
-func (uc *ScheduleUsecase) DeleteSchedule(ctx context.Context, scheduleID uuid.UUID) error {
+func (uc *ScheduleUsecase) DeleteSchedule(ctx context.Context, scheduleID uuid.UUID, user *users.User) error {
 	logger := uc.logger
 
-	err := uc.repo.DeleteSchedule(ctx, scheduleID)
+	schedule, err := uc.repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
+	}
+
+	err = uc.repo.DeleteSchedule(ctx, scheduleID)
 	if err != nil {
 		logger.Error("Delete schedule error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)

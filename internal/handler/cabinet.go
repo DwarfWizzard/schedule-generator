@@ -6,17 +6,18 @@ import (
 
 	"schedule-generator/internal/application/usecases"
 	"schedule-generator/internal/domain/cabinets"
+	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 type CabinetUsecase interface {
-	CreateCabinet(ctx context.Context, input usecases.CreateCabinetInput) (*usecases.CreateCabinetOutput, error)
-	GetCabinet(ctx context.Context, cabinetID uuid.UUID) (*usecases.GetCabinetOutput, error)
-	ListCabinet(ctx context.Context) (usecases.ListCabinetOutput, error)
-	UpdateCabinet(ctx context.Context, input usecases.UpdateCabinetInput) (*usecases.UpdateCabinetOutput, error)
-	DeleteCabinet(ctx context.Context, cabinetID uuid.UUID) error
+	CreateCabinet(ctx context.Context, input usecases.CreateCabinetInput, user *users.User) (*usecases.CreateCabinetOutput, error)
+	GetCabinet(ctx context.Context, cabinetID uuid.UUID, user *users.User) (*usecases.GetCabinetOutput, error)
+	ListCabinet(ctx context.Context, user *users.User) (usecases.ListCabinetOutput, error)
+	UpdateCabinet(ctx context.Context, input usecases.UpdateCabinetInput, user *users.User) (*usecases.UpdateCabinetOutput, error)
+	DeleteCabinet(ctx context.Context, cabinetID uuid.UUID, user *users.User) error
 }
 
 type CabinetEquipment struct {
@@ -51,6 +52,11 @@ type CreateCabinetRequest struct {
 func (h *Handler) CreateCabinet(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	var rq CreateCabinetRequest
 	if err := c.Bind(&rq); err != nil {
 		h.logger.Error("Parse request error", "error", err)
@@ -74,7 +80,7 @@ func (h *Handler) CreateCabinet(c echo.Context) error {
 		Building:                           rq.Building,
 		Appointment:                        rq.Appointment,
 		Equipment:                          equipment,
-	})
+	}, user)
 	if err != nil {
 		h.logger.Error("Create cabinet error", "error", err)
 		return err
@@ -87,12 +93,17 @@ func (h *Handler) CreateCabinet(c echo.Context) error {
 func (h *Handler) GetCabinet(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	cabinetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	out, err := h.cabinet.GetCabinet(ctx, cabinetID)
+	out, err := h.cabinet.GetCabinet(ctx, cabinetID, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -105,7 +116,12 @@ func (h *Handler) GetCabinet(c echo.Context) error {
 func (h *Handler) ListCabinet(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	out, err := h.cabinet.ListCabinet(ctx)
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	out, err := h.cabinet.ListCabinet(ctx, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -133,6 +149,11 @@ type UpdateCabinetRequest struct {
 // UpdateCabinet - PUT /v1/cabinets/:id
 func (h *Handler) UpdateCabinet(c echo.Context) error {
 	ctx := c.Request().Context()
+
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
 
 	cabinetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -163,7 +184,7 @@ func (h *Handler) UpdateCabinet(c echo.Context) error {
 		SuitableForPeoplesWithSpecialNeeds: rq.SuitableForPeoplesWithSpecialNeeds,
 		Appointment:                        rq.Appointment,
 		Equipment:                          equipment,
-	})
+	}, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
@@ -176,12 +197,17 @@ func (h *Handler) UpdateCabinet(c echo.Context) error {
 func (h *Handler) DeleteCabinet(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
 	cabinetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return ErrInvalidInput
 	}
 
-	err = h.cabinet.DeleteCabinet(ctx, cabinetID)
+	err = h.cabinet.DeleteCabinet(ctx, cabinetID, user)
 	if err != nil {
 		h.logger.Error("Get list schedule error", "error", err)
 		return err
