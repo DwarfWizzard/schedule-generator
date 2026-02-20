@@ -25,7 +25,7 @@ func (s *ScheduleService) ListScheduleItemByDate(schedule *CycledSchedule, educa
 		Sub(educationStartDate.Truncate(24*time.Hour)).
 		Hours() / 24)
 
-	weekNumber := days / 7
+	weekNumber := days / 7 + 1
 
 	weekType := WeekTypeUneven
 	if weekNumber%2 == 0 {
