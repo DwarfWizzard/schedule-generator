@@ -206,7 +206,7 @@ func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context, user *users.User) ([]
 			return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 		}
 
-		department, ok := departments[plan.DirectionID]
+		department, ok := departments[plan.DepartmentID]
 		if !ok {
 			logger.Error(fmt.Sprintf("Department for edu plan %s not found", plan.ID))
 			return nil, execerror.NewExecError(execerror.TypeInternal, nil)

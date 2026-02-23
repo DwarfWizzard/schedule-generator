@@ -40,10 +40,13 @@ func (m *Migrator) Migrate(ctx context.Context, migrationVersion int) error {
 				}
 			}
 
-			err := tx.Model(&EduPlan{}).
-				Joins("JOIN edu_directions ON edu_plans.direction_id = edu_directions.id").
-				Where("edu_plans.department_id IS NULL").
-				Update("department_id", gorm.Expr("edu_directions.department_id")).Error
+			err := tx.Exec(`
+				UPDATE edu_plans 
+				SET department_id = edu_directions.department_id 
+				FROM edu_directions 
+				WHERE edu_plans.direction_id = edu_directions.id 
+				AND edu_plans.department_id IS NULL
+			`).Error
 			if err != nil {
 				return fmt.Errorf("copy department_id from edu_directions: %w", err)
 			}
@@ -57,18 +60,15 @@ func (m *Migrator) Migrate(ctx context.Context, migrationVersion int) error {
 				return fmt.Errorf("не перенесено записей EduPlan: %d", uncopiedCount)
 			}
 
-			// 4. Удаляем department_id из EduDirection
 			if err := tx.Migrator().DropColumn(&EduDirection{}, "department_id"); err != nil {
 				return fmt.Errorf("drop department_id from edu_directions: %w", err)
 			}
 
-			// 5. Удаляем старый индекс (если существует)
 			err = tx.Exec("DROP INDEX IF EXISTS edu_plan_direction_profile_year_unique").Error
 			if err != nil {
 				return fmt.Errorf("drop old index: %w", err)
 			}
 
-			// 6. Создаем новый композитный уникальный индекс
 			err = tx.Exec(`
 				CREATE UNIQUE INDEX IF NOT EXISTS edu_plan_direction_department_profile_year_unique 
 				ON edu_plans (direction_id, department_id, profile, year)
@@ -76,7 +76,12 @@ func (m *Migrator) Migrate(ctx context.Context, migrationVersion int) error {
 			if err != nil {
 				return fmt.Errorf("create new unique index: %w", err)
 			}
+
+			if err := tx.Exec("ALTER TABLE edu_plans ALTER COLUMN department_id SET NOT NULL").Error; err != nil {
+				return fmt.Errorf("add NOT NULL on department_id: %w", err)
+			}
 		}
+		fallthrough
 	default:
 		err := tx.AutoMigrate(
 			&User{},
