@@ -21,8 +21,11 @@ func (s *ScheduleService) ListScheduleItemByDate(schedule *CycledSchedule, educa
 		return nil, errors.New("invalid date")
 	}
 
-	daysPassed := int(date.Sub(educationStartDate).Hours() / 24)
-	weekNumber := daysPassed/7 + 1
+	days := int(date.Truncate(24*time.Hour).
+		Sub(educationStartDate.Truncate(24*time.Hour)).
+		Hours() / 24)
+
+	weekNumber := days / 7 + 1
 
 	weekType := WeekTypeUneven
 	if weekNumber%2 == 0 {

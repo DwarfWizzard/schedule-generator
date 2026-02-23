@@ -133,6 +133,7 @@ func (h *Handler) InitRouter() *echo.Echo {
 		schedules.POST("", h.CreateSchedule)
 		schedules.GET("", h.ListSchedule)
 		schedules.GET("/:id", h.GetSchedule)
+		schedules.PATCH("/:id", h.UpdateSchedule)
 		schedules.DELETE("/:id", h.DeleteSchedule)
 		schedules.GET("/:id/export", h.ExportSchedule)
 		schedules.POST("/:id/items", h.AddScheduleItem)

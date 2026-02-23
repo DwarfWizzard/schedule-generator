@@ -55,6 +55,45 @@ func (s *Schedule) ListItem() []ScheduleItem {
 	return nil
 }
 
+func (s *Schedule) Validate(admissionYear, currentYear int) error {
+	if err := s.validateSemester(admissionYear, currentYear); err != nil {
+		return err
+	}
+
+	switch s.Type {
+	case ScheduleTypeCycled:
+		return s.Cycled.Validate()
+	case ScheduleTypeCalendar:
+		return s.Calendar.Validate()
+	}
+
+	return fmt.Errorf("unknown schedule")
+}
+
+func (s *Schedule) validateSemester(admissionYear, currentYear int) error {
+	if s.Semester < 0 {
+		return errors.Join(ErrInvalidData, errors.New("invalid semester value"))
+	}
+
+	allowedSemesters := [2]int{1, 2}
+	diff := currentYear - int(admissionYear)
+	if diff < 0 {
+		return errors.Join(ErrInvalidData, fmt.Errorf("admission year %d is in the future", admissionYear))
+	}
+
+	if diff == 0 {
+		allowedSemesters = [2]int{1, 2}
+	} else {
+		allowedSemesters = [2]int{diff*2 - 1, diff * 2}
+	}
+
+	if s.Semester != allowedSemesters[0] && s.Semester != allowedSemesters[1] {
+		return errors.Join(ErrInvalidData, fmt.Errorf("for admission year %d current allowed semesters is %d and %d", admissionYear, allowedSemesters[0], allowedSemesters[1]))
+	}
+
+	return nil
+}
+
 type CycledSchedule struct {
 	StartDate time.Time
 	EndDate   time.Time
@@ -62,22 +101,10 @@ type CycledSchedule struct {
 }
 
 // NewCycledSchedule
-func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate time.Time) (*Schedule, error) {
+func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate time.Time, admissionYear, currentYear int) (*Schedule, error) {
 	id := uuid.New()
 
-	if semester < 0 {
-		return nil, errors.Join(ErrInvalidData, errors.New("invalid semester value"))
-	}
-
-	if startDate.IsZero() || endDate.IsZero() {
-		return nil, errors.Join(ErrInvalidData, errors.New("both start and end dates can not be empty"))
-	}
-
-	if startDate.After(endDate) {
-		return nil, errors.Join(ErrInvalidData, errors.New("start date is after end date"))
-	}
-
-	return &Schedule{
+	schedule := Schedule{
 		ID:         id,
 		EduGroupID: eduGroupID,
 		Semester:   semester,
@@ -87,7 +114,13 @@ func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate ti
 			EndDate:   endDate,
 			Items:     make(map[time.Weekday][]ScheduleItem, 6),
 		},
-	}, nil
+	}
+
+	if err := schedule.validateSemester(admissionYear, currentYear); err != nil {
+		return nil, err
+	}
+
+	return &schedule, nil
 }
 
 // ListItem returns ScheduleItem array in weekday ordering
@@ -103,6 +136,19 @@ func (s CycledSchedule) ListItem() []ScheduleItem {
 // ListItemByWeekday returns item list for specified weekday
 func (s CycledSchedule) ListItemByWeekday(day time.Weekday) []ScheduleItem {
 	return s.Items[day]
+}
+
+// Validate
+func (s CycledSchedule) Validate() error {
+	if s.StartDate.IsZero() || s.EndDate.IsZero() {
+		return errors.Join(ErrInvalidData, errors.New("both start and end dates can not be empty"))
+	}
+
+	if s.StartDate.After(s.EndDate) {
+		return errors.Join(ErrInvalidData, errors.New("start date is after end date"))
+	}
+
+	return nil
 }
 
 // AddItem adds item to schedule
@@ -280,6 +326,11 @@ func CalendarScheduleFromCycled(eduGroupID uuid.UUID, semester int, cycled *Cycl
 // ListItem returns ScheduleItem array
 func (s CalendarSchedule) ListItem() []ScheduleItem {
 	return s.Items
+}
+
+// Validate
+func (s *CalendarSchedule) Validate() error {
+	return nil
 }
 
 // AddItem

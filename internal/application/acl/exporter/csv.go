@@ -229,5 +229,9 @@ func formLessonType(lessonType schedules.ItemLessonType) (string, error) {
 }
 
 func formCabinetAddress(cabinet schedules.Cabinet) string {
+	if _, err := strconv.Atoi(cabinet.Building); err == nil {
+		return fmt.Sprintf("УК%s-%s", cabinet.Building, cabinet.Auditorium)
+	}
+
 	return fmt.Sprintf("%s-%s", cabinet.Building, cabinet.Auditorium)
 }

@@ -112,7 +112,7 @@ func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateSched
 		return nil, execerror.NewExecError(execerror.TypeUnimpemented, errors.New("calendar schedule not implemented"))
 	}
 
-	schedule, err := schedules.NewCycledSchedule(input.EduGroupID, input.Semester, *input.StartDate, *input.EndDate)
+	schedule, err := schedules.NewCycledSchedule(input.EduGroupID, input.Semester, *input.StartDate, *input.EndDate, int(group.AdmissionYear), time.Now().Year())
 	if err != nil {
 		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
 	}
@@ -563,6 +563,87 @@ func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, schedule
 	}
 
 	return nil
+}
+
+type UpdateScheduleInput struct {
+	ID        uuid.UUID
+	Semester  *int
+	StartDate *time.Time
+	EndDate   *time.Time
+}
+
+type UpdateScheduleOutput GetScheduleOutput
+
+// UpdateSchedule
+func (uc *ScheduleUsecase) UpdateSchedule(ctx context.Context, input UpdateScheduleInput, user *users.User) (*UpdateScheduleOutput, error) {
+	logger := uc.logger.With("schedule_id", input.ID)
+
+	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
+	if err != nil {
+		logger.Error("Start transaction error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+	defer rollback(ctx)
+
+	repo := tx.(ScheduleUsecaseRepo)
+
+	schedule, err := repo.GetSchedule(ctx, input.ID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
+	}
+
+	group, err := uc.repo.GetEduGroup(ctx, schedule.EduGroupID)
+	if err != nil {
+		logger.Error("Get schedules group error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if input.Semester != nil {
+		schedule.Semester = *input.Semester
+	}
+
+	if input.StartDate != nil && schedule.Type == schedules.ScheduleTypeCycled {
+		schedule.Cycled.StartDate = *input.StartDate
+	}
+
+	if input.EndDate != nil && schedule.Type == schedules.ScheduleTypeCycled {
+		schedule.Cycled.EndDate = *input.EndDate
+	}
+
+	err = schedule.Validate(int(group.AdmissionYear), time.Now().Year())
+	if err != nil {
+		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
+	}
+
+	err = repo.SaveSchedule(ctx, schedule)
+	if err != nil {
+		logger.Error("Save schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		logger.Error("Save updated schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	dto, _ := scheduleToCycledScheduleDTO(schedule, nil, false)
+	return &UpdateScheduleOutput{
+		ScheduleDTO:    dto,
+		EduGroupNumber: group.Number,
+	}, nil
 }
 
 // UpdateItemInSchedule
