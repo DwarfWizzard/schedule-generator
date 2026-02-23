@@ -21,6 +21,7 @@ type EduPlanUsecaseRepo interface {
 	edudirections.Repository
 	eduplans.Repository
 	departments.Repository
+	db.TransactionalRepository
 
 	MapEduDirectionByEduPlans(ctx context.Context, plansIDs uuid.UUIDs) (map[uuid.UUID]edudirections.EduDirection, error)
 	MapDepartmentsByEduPlans(ctx context.Context, plansIDs uuid.UUIDs) (map[uuid.UUID]departments.Department, error)
@@ -219,6 +220,118 @@ func (uc *EduPlanUsecase) ListEduPlan(ctx context.Context, user *users.User) ([]
 	}
 
 	return result, nil
+}
+
+type UpdateEduPlanInput struct {
+	ID           uuid.UUID
+	DirectionID  *uuid.UUID
+	DepartmentID *uuid.UUID
+	Profile      *string
+	Year         *int64
+}
+
+type UpdateEduPlanOutput GetEduPlanOutput
+
+// UpdateEduPlan
+func (uc *EduPlanUsecase) UpdateEduPlan(ctx context.Context, input UpdateEduPlanInput, user *users.User) (*UpdateEduPlanOutput, error) {
+	logger := uc.logger
+
+	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
+	if err != nil {
+		logger.Error("Start transaction error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+	defer rollback(ctx)
+
+	repo := tx.(EduPlanUsecaseRepo)
+
+	eduplan, err := repo.GetEduPlan(ctx, input.ID)
+	if err != nil {
+		logger.Error("List eduplan error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("eduplan not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToEduPlan(ctx, eduplan, user); err != nil {
+		logger.Error("Check access to edu plan error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to edu plan"))
+	}
+
+	if input.DirectionID != nil && eduplan.DirectionID != *input.DirectionID {
+		eduplan.DirectionID = *input.DirectionID
+	}
+
+	if input.DepartmentID != nil && eduplan.DepartmentID != *input.DepartmentID {
+
+		eduplan.DepartmentID = *input.DepartmentID
+	}
+
+	if input.Profile != nil {
+		eduplan.Profile = *input.Profile
+	}
+
+	if input.Year != nil {
+		eduplan.Year = *input.Year
+	}
+
+	if err := eduplan.Validate(); err != nil {
+		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
+	}
+
+	direction, err := repo.GetEduDirection(ctx, eduplan.DirectionID)
+	if err != nil {
+		logger.Error("Get edu direction error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("edu direction not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	department, err := repo.GetDepartment(ctx, eduplan.DepartmentID)
+	if err != nil {
+		logger.Error("Get department error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("department not found"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToDepartment(ctx, department, user); err != nil {
+		logger.Error("Check access to department error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to department"))
+	}
+
+	err = repo.SaveEduPlan(ctx, eduplan)
+	if err != nil {
+		logger.Error("Save eduplan error", "error", err)
+
+		if errors.Is(err, db.ErrorUniqueViolation) {
+			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("edu plan with provided direction, year and profile already exists"))
+		}
+
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		logger.Error("Save updated schedule error", "error", err)
+		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return &UpdateEduPlanOutput{
+		EduPlan:        *eduplan,
+		DirectionName:  direction.Name,
+		DepartmentName: department.Name,
+	}, nil
 }
 
 // DeleteEduPlan

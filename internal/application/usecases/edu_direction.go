@@ -35,34 +35,19 @@ func NewEduDirectionUsecase(authSvc *services.AuthorizationService, repo EduDire
 }
 
 type CreateEduDirectionInput struct {
-	DepartmentID uuid.UUID
-	Name         string
+	Name string
 }
 
 type CreateEduDirectionOutput struct {
 	edudirections.EduDirection
-	DepartmentName string
 }
 
 // CreateEduDirection
 func (uc *EduDirectionUsecase) CreateEduDirection(ctx context.Context, input CreateEduDirectionInput, user *users.User) (*CreateEduDirectionOutput, error) {
 	logger := uc.logger
 
-	department, err := uc.repo.GetDepartment(ctx, input.DepartmentID)
-	if err != nil {
-		logger.Error("Get department error", "error", err)
-		if errors.Is(err, db.ErrorNotFound) {
-			return nil, execerror.NewExecError(execerror.TypeInvalidInput, errors.New("department not found"))
-		}
-
-		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
-	}
-
-	if ok, err := uc.authSvc.HaveAccessToDepartment(ctx, department, user); err != nil {
-		logger.Error("Check access to department error", "error", err)
-		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
-	} else if !ok {
-		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to department"))
+	if !uc.authSvc.IsAdmin(user) {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
 	}
 
 	direction, err := edudirections.NewEduDirection(input.Name)
@@ -77,14 +62,12 @@ func (uc *EduDirectionUsecase) CreateEduDirection(ctx context.Context, input Cre
 	}
 
 	return &CreateEduDirectionOutput{
-		EduDirection:   *direction,
-		DepartmentName: department.Name,
+		EduDirection: *direction,
 	}, nil
 }
 
 type GetEduDirectionOutput struct {
 	edudirections.EduDirection
-	DepartmentName string
 }
 
 // GetEduDirection
@@ -147,6 +130,10 @@ type UpdateEduDirectionOutput struct {
 // UpdateEduDirection
 func (uc *EduDirectionUsecase) UpdateEduDirection(ctx context.Context, input UpdateEduDirectionInput, user *users.User) (*UpdateEduDirectionOutput, error) {
 	logger := uc.logger
+
+	if !uc.authSvc.IsAdmin(user) {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have acces to usecase"))
+	}
 
 	direction, err := uc.repo.GetEduDirection(ctx, input.EduDirectionID)
 	if err != nil {

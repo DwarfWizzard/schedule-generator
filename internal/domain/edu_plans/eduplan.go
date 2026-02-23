@@ -22,23 +22,33 @@ type EduPlan struct {
 	Modules []Module
 }
 
+func (p *EduPlan) Validate() error {
+	if p.Year < 1900 || p.Year > 2999 {
+		return errors.New("invalid year value")
+	}
+
+	if len(p.Profile) == 0 {
+		return errors.New("invalid profile")
+	}
+
+	return nil
+}
+
 // NewEduPlan
 func NewEduPlan(directionID, departmentID uuid.UUID, profile string, year int64) (*EduPlan, error) {
-	if year < 1900 || year > 2999 {
-		return nil, errors.New("invalid year value")
-	}
-
-	if len(profile) == 0 {
-		return nil, errors.New("invalid profile")
-	}
-
-	return &EduPlan{
+	p := &EduPlan{
 		ID:           uuid.New(),
 		DirectionID:  directionID,
 		DepartmentID: departmentID,
 		Profile:      profile,
 		Year:         year,
-	}, nil
+	}
+
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
 var errModuleNotFound = errors.New("module not found")
