@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"schedule-generator/internal/domain/departments"
-	edudirections "schedule-generator/internal/domain/edu_directions"
 	edugroups "schedule-generator/internal/domain/edu_groups"
 	eduplans "schedule-generator/internal/domain/edu_plans"
 	"schedule-generator/internal/domain/faculties"
@@ -16,7 +15,6 @@ import (
 )
 
 type AuthorizationServiceRepository interface {
-	GetEduDirectionFacultyID(ctx context.Context, directionID uuid.UUID) (uuid.UUID, error)
 	GetEduGroupFacultyID(ctx context.Context, groupID uuid.UUID) (uuid.UUID, error)
 	GetEduPlanFacultyID(ctx context.Context, planID uuid.UUID) (uuid.UUID, error)
 	GetScheduleFacultyID(ctx context.Context, scheduleID uuid.UUID) (uuid.UUID, error)
@@ -45,15 +43,6 @@ func (a *AuthorizationService) HaveAccessToFaculty(ctx context.Context, faculty 
 
 func (a *AuthorizationService) HaveAccessToDepartment(ctx context.Context, department *departments.Department, user *users.User) (bool, error) {
 	return a.svc.HaveAccessToFaculty(user, department.FacultyID), nil
-}
-
-func (a *AuthorizationService) HaveAccessToEduDirection(ctx context.Context, direction *edudirections.EduDirection, user *users.User) (bool, error) {
-	facultyID, err := a.repo.GetEduDirectionFacultyID(ctx, direction.ID)
-	if err != nil {
-		return false, fmt.Errorf("get direction faculty id error: %w", err)
-	}
-
-	return a.svc.HaveAccessToFaculty(user, facultyID), nil
 }
 
 func (a *AuthorizationService) HaveAccessToEduGroup(ctx context.Context, group *edugroups.EduGroup, user *users.User) (bool, error) {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -408,8 +407,6 @@ func (h *Handler) UpdateSchedule(c echo.Context) error {
 
 	}
 
-	log.Println("AAAAAAAAAAAAAAAAAAA", startDate)
-
 	out, err := h.schedule.UpdateSchedule(ctx, usecases.UpdateScheduleInput{
 		ID:        scheduleID,
 		Semester:  rq.Semester,
@@ -417,7 +414,7 @@ func (h *Handler) UpdateSchedule(c echo.Context) error {
 		EndDate:   endDate,
 	}, user)
 	if err != nil {
-		h.logger.Error("Get list schedule error", "error", err)
+		h.logger.Error("Update schedule error", "error", err)
 		return err
 	}
 

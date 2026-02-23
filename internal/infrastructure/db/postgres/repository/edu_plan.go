@@ -50,7 +50,7 @@ func (r *Repository) GetEduPlan(ctx context.Context, id uuid.UUID) (*eduplans.Ed
 // GetEduPlanFacultyID
 func (r *Repository) GetEduPlanFacultyID(ctx context.Context, planID uuid.UUID) (uuid.UUID, error) {
 	var s schema.EduPlan
-	err := r.client.WithContext(ctx).Preload("Direction.Department").Preload(clause.Associations).Where("id = ?", planID).First(&s).Error
+	err := r.client.WithContext(ctx).Preload("Department").Preload(clause.Associations).Where("id = ?", planID).First(&s).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return uuid.UUID{}, db.ErrorNotFound
@@ -59,7 +59,7 @@ func (r *Repository) GetEduPlanFacultyID(ctx context.Context, planID uuid.UUID) 
 		return uuid.UUID{}, err
 	}
 
-	return s.Direction.Department.FacultyID, nil
+	return s.Department.FacultyID, nil
 }
 
 // ListEduPlan

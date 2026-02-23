@@ -34,6 +34,7 @@ type Config struct {
 	AccessTTL             time.Duration `conf:"default:15m"`
 	RefreshTTL            time.Duration `conf:"default:24h"`
 	PasswordSalt          string        `conf:"required,mask,notzero"`
+	Migration             int           `conf:"default:0"`
 }
 
 func main() {
@@ -61,7 +62,7 @@ func main() {
 	}
 
 	migrator := schema.NewMigrator(db.DB())
-	if err := migrator.Migrate(ctx); err != nil {
+	if err := migrator.Migrate(ctx, cfg.Migration); err != nil {
 		logger.Error("Migrate error", "error", err)
 		os.Exit(1)
 	}

@@ -63,7 +63,7 @@ func (r *Repository) GetSchedule(ctx context.Context, id uuid.UUID) (*schedules.
 // GetScheduleFacultyID
 func (r *Repository) GetScheduleFacultyID(ctx context.Context, scheduleID uuid.UUID) (uuid.UUID, error) {
 	var s schema.Schedule
-	err := r.client.WithContext(ctx).Preload("EduGroup.EduPlan.Direction.Department").Preload(clause.Associations).Where("id = ?", scheduleID).First(&s).Error
+	err := r.client.WithContext(ctx).Preload("EduGroup.EduPlan.Department").Preload(clause.Associations).Where("id = ?", scheduleID).First(&s).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return uuid.UUID{}, db.ErrorNotFound
@@ -72,7 +72,7 @@ func (r *Repository) GetScheduleFacultyID(ctx context.Context, scheduleID uuid.U
 		return uuid.UUID{}, err
 	}
 
-	return s.EduGroup.EduPlan.Direction.Department.FacultyID, nil
+	return s.EduGroup.EduPlan.Department.FacultyID, nil
 }
 
 // GetScheduleByEduGroupIDAndSemester

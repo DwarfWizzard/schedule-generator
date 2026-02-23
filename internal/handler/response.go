@@ -31,7 +31,7 @@ func (rw *ResponseWrapper) Send(c echo.Context) error {
 	return c.JSON(rw.Status, rw)
 }
 
-// Send returns to API client wrapped
+// Send returns to API client wrapped response
 func (rw *ResponseWrapper) SendAsFile(c echo.Context, filename, format string) error {
 	if rw == nil {
 		return nil
@@ -45,7 +45,7 @@ func (rw *ResponseWrapper) SendAsFile(c echo.Context, filename, format string) e
 	switch format {
 	case "csv":
 		c.Response().Header().Set(echo.HeaderContentDisposition, "attachment; filename="+filename)
-		c.Response().Header().Set(echo.HeaderContentType, "text/csv")
+		c.Response().Header().Set(echo.HeaderContentType, "text/csv; charset=utf-8")
 	default:
 		return ErrUnsupportedFormat
 	}

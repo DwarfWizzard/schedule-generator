@@ -21,15 +21,12 @@ type EduDirectionUsecase interface {
 }
 
 type EduDirection struct {
-	ID             uuid.UUID `json:"id"`
-	Name           string    `json:"name"`
-	DepartmentID   uuid.UUID `json:"department_id"`
-	DepartmentName string    `json:"department_name"`
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 type CreateEduDirectionRequest struct {
-	Name         string    `json:"name"`
-	DepartmentID uuid.UUID `json:"department_id"`
+	Name string `json:"name"`
 }
 
 type UpdateEduDirectionRequest struct {
@@ -51,15 +48,14 @@ func (h *Handler) CreateEduDirection(c echo.Context) error {
 	}
 
 	out, err := h.eduDirection.CreateEduDirection(ctx, usecases.CreateEduDirectionInput{
-		Name:         rq.Name,
-		DepartmentID: rq.DepartmentID,
+		Name: rq.Name,
 	}, user)
 	if err != nil {
 		h.logger.Error("Create edu direction error", "error", err)
 		return err
 	}
 
-	return WrapResponse(http.StatusCreated, eduDirectionToView(&out.EduDirection, out.DepartmentName)).Send(c)
+	return WrapResponse(http.StatusCreated, eduDirectionToView(&out.EduDirection)).Send(c)
 }
 
 func (h *Handler) GetEduDirection(c echo.Context) error {
@@ -81,7 +77,7 @@ func (h *Handler) GetEduDirection(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection, out.DepartmentName)).Send(c)
+	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection)).Send(c)
 }
 
 func (h *Handler) ListEduDirection(c echo.Context) error {
@@ -100,7 +96,7 @@ func (h *Handler) ListEduDirection(c echo.Context) error {
 
 	result := make([]EduDirection, len(out))
 	for i, d := range out {
-		result[i] = eduDirectionToView(&d.EduDirection, d.DepartmentName)
+		result[i] = eduDirectionToView(&d.EduDirection)
 	}
 
 	return WrapResponse(http.StatusOK, result).Send(c)
@@ -134,7 +130,7 @@ func (h *Handler) UpdateEduDirection(c echo.Context) error {
 		return err
 	}
 
-	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection, out.DepartmentName)).Send(c)
+	return WrapResponse(http.StatusOK, eduDirectionToView(&out.EduDirection)).Send(c)
 }
 
 func (h *Handler) DeleteEduDirection(c echo.Context) error {
@@ -158,11 +154,9 @@ func (h *Handler) DeleteEduDirection(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
-func eduDirectionToView(model *edudirections.EduDirection, departmentName string) EduDirection {
+func eduDirectionToView(model *edudirections.EduDirection) EduDirection {
 	return EduDirection{
-		ID:             model.ID,
-		Name:           model.Name,
-		DepartmentID:   model.DepartmentID,
-		DepartmentName: departmentName,
+		ID:   model.ID,
+		Name: model.Name,
 	}
 }

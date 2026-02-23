@@ -107,6 +107,7 @@ func (h *Handler) InitRouter() *echo.Echo {
 		plans.POST("", h.CreateEduPlan)
 		plans.GET("", h.ListEduPlan)
 		plans.GET("/:id", h.GetEduPlan)
+		plans.PATCH("/:id", h.UpdateEduPlan)
 		plans.DELETE("/:id", h.DeleteEduPlan)
 	}
 

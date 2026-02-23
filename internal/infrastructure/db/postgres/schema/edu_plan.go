@@ -12,11 +12,13 @@ type Module struct {
 }
 
 type EduPlan struct {
-	ID          uuid.UUID     `gorm:"column:id;type:string;primaryKey"`
-	DirectionID uuid.UUID     `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:direction_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
-	Direction   *EduDirection `gorm:"foreignKey:direction_id"`
-	Profile     string        `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:profile;not null"`
-	Year        int64         `gorm:"uniqueIndex:edu_plan_direction_profile_year_unique;column:year;not null"`
+	ID           uuid.UUID     `gorm:"column:id;type:string;primaryKey"`
+	DirectionID  uuid.UUID     `gorm:"uniqueIndex:edu_plan_direction_department_profile_year_unique;column:direction_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Direction    *EduDirection `gorm:"foreignKey:direction_id"`
+	DepartmentID uuid.UUID     `gorm:"uniqueIndex:edu_plan_direction_department_profile_year_unique;column:department_id;type:string;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Department   *Department   `gorm:"foreignKey:department_id"`
+	Profile      string        `gorm:"uniqueIndex:edu_plan_direction_department_profile_year_unique;column:profile;not null"`
+	Year         int64         `gorm:"uniqueIndex:edu_plan_direction_department_profile_year_unique;column:year;not null"`
 
 	Modules []Module `gorm:"foreignKey:edu_plan_id"`
 }
@@ -26,11 +28,12 @@ func EduPlanToSchema(eduplan *eduplans.EduPlan) *EduPlan {
 	modules := eduplan.ListModule()
 
 	schema := EduPlan{
-		ID:          eduplan.ID,
-		DirectionID: eduplan.DirectionID,
-		Profile:     eduplan.Profile,
-		Year:        eduplan.Year,
-		Modules:     make([]Module, len(modules)),
+		ID:           eduplan.ID,
+		DirectionID:  eduplan.DirectionID,
+		DepartmentID: eduplan.DepartmentID,
+		Profile:      eduplan.Profile,
+		Year:         eduplan.Year,
+		Modules:      make([]Module, len(modules)),
 	}
 
 	for i, module := range modules {
@@ -46,10 +49,11 @@ func EduPlanToSchema(eduplan *eduplans.EduPlan) *EduPlan {
 // EduPlanFromSchema
 func EduPlanFromSchema(schema *EduPlan) *eduplans.EduPlan {
 	model := eduplans.EduPlan{
-		ID:          schema.ID,
-		DirectionID: schema.DirectionID,
-		Profile:     schema.Profile,
-		Year:        schema.Year,
+		ID:           schema.ID,
+		DirectionID:  schema.DirectionID,
+		DepartmentID: schema.DepartmentID,
+		Profile:      schema.Profile,
+		Year:         schema.Year,
 
 		Modules: make([]eduplans.Module, 0, len(schema.Modules)),
 	}
