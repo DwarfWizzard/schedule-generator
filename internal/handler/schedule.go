@@ -324,6 +324,7 @@ func (h *Handler) ExportSchedule(c echo.Context) error {
 	}
 
 	buffer := bytes.NewBuffer([]byte{})
+	buffer.Write([]byte{0xEF, 0xBB, 0xBF}) // bom
 
 	var exportErr error
 	if rq.AsCalendar {
