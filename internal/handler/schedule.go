@@ -13,6 +13,7 @@ import (
 	"schedule-generator/internal/domain/users"
 
 	"github.com/google/uuid"
+	"github.com/kennygrant/sanitize"
 	"github.com/labstack/echo/v4"
 )
 
@@ -323,6 +324,18 @@ func (h *Handler) ExportSchedule(c echo.Context) error {
 		return ErrNotParsable
 	}
 
+	schedule, err := h.schedule.GetSchedule(ctx, rq.ScheduleID, user)
+	if err != nil {
+		h.logger.Error("Get schedule error", "error", err)
+		return err
+	}
+
+	group, err := h.eduGroup.GetEduGroup(ctx, schedule.EduGroupID, user)
+	if err != nil {
+		h.logger.Error("Get group error", "error", err)
+		return err
+	}
+
 	buffer := bytes.NewBuffer([]byte{})
 	buffer.Write([]byte{0xEF, 0xBB, 0xBF}) // bom
 
@@ -338,7 +351,8 @@ func (h *Handler) ExportSchedule(c echo.Context) error {
 		return exportErr
 	}
 
-	fname := fmt.Sprintf("%s-%s.csv", rq.ScheduleID, time.Now().Format("20060102150405"))
+	fname := fmt.Sprintf("%s-semester-%d-%s.csv", group.Number, schedule.Semester, time.Now().Format("20060102150405"))
+	fname = sanitize.Name(fname)
 
 	return WrapResponse(http.StatusOK, buffer).SendAsFile(c, fname, rq.Format)
 }
