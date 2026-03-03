@@ -11,6 +11,7 @@ import (
 	"schedule-generator/internal/application/usecases"
 	"schedule-generator/internal/common"
 	"schedule-generator/internal/domain/users"
+	"schedule-generator/pkg/translit"
 
 	"github.com/google/uuid"
 	"github.com/kennygrant/sanitize"
@@ -351,7 +352,8 @@ func (h *Handler) ExportSchedule(c echo.Context) error {
 		return exportErr
 	}
 
-	fname := fmt.Sprintf("%s-semester-%d-%s.csv", group.Number, schedule.Semester, time.Now().Format("20060102150405"))
+	transGroupNum := translit.Transliterate(group.Number)
+	fname := fmt.Sprintf("%s-semester-%d-%s.csv", transGroupNum, schedule.Semester, time.Now().Format("20060102150405"))
 	fname = sanitize.Name(fname)
 
 	return WrapResponse(http.StatusOK, buffer).SendAsFile(c, fname, rq.Format)
