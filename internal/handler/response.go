@@ -2,9 +2,7 @@ package handler
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/labstack/echo/v4"
 )
@@ -46,7 +44,7 @@ func (rw *ResponseWrapper) SendAsFile(c echo.Context, filename, format string) e
 
 	switch format {
 	case "csv":
-		c.Response().Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename*=UTF-8''%s", url.QueryEscape(filename)))
+		c.Response().Header().Set(echo.HeaderContentDisposition, "attachment; filename="+filename)
 		c.Response().Header().Set(echo.HeaderContentType, "text/csv; charset=utf-8")
 		c.Response().Header().Set("Cache-Control", "no-cache")
 	default:
