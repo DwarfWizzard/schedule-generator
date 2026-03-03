@@ -62,6 +62,9 @@ func (h *Handler) InitRouter() *echo.Echo {
 			echo.HeaderAccept,
 			echo.HeaderAuthorization,
 		}, // Разрешённые заголовки
+		ExposeHeaders: []string{
+			echo.HeaderContentDisposition,
+		},
 	}))
 
 	auth := router.Group("/auth")
