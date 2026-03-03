@@ -115,7 +115,7 @@ func (r *Repository) MapFacultiesByUsers(ctx context.Context, userIDs uuid.UUIDs
 
 	result := make(map[uuid.UUID]faculties.Faculty)
 	for _, userSchema := range userList {
-		if userSchema.Faculty == nil || userSchema.Faculty == nil {
+		if userSchema.Faculty == nil {
 			continue
 		}
 
