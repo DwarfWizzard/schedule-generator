@@ -1,18 +1,20 @@
 package schedules
 
 import (
-	"errors"
+	"fmt"
 	"time"
 )
 
 type PracticeType int8
 
 const (
-	PracticeTypeIndustrial = iota
+	PracticeTypeEducational = iota
+	PracticeTypeIndustrial
 	PracticeTypeDiploma
 )
 
 var practiceNames = []string{
+	"educational",
 	"industrial",
 	"diploma",
 }
@@ -23,7 +25,7 @@ func (p PracticeType) String() string {
 
 func NewPracticeType(pt int8) (PracticeType, error) {
 	if int(pt) < 0 || int(pt) >= len(practiceNames) {
-		return 0, errors.New("unknown week type")
+		return 0, fmt.Errorf("unknown week type %d", pt)
 	}
 
 	return PracticeType(pt), nil

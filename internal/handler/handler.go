@@ -143,6 +143,9 @@ func (h *Handler) InitRouter() *echo.Echo {
 		schedules.POST("/:id/items", h.AddScheduleItem)
 		schedules.PUT("/:id/items", h.UpdateScheduleItem)
 		schedules.DELETE("/:id/items", h.RemoveScheduleItem)
+
+		schedules.POST("/:id/practices", h.AddSchedulePractices)
+		schedules.DELETE("/:id/practices", h.RemoveSchedulePractice)
 	}
 
 	cabinets := api.Group("/cabinets")

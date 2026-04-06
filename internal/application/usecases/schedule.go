@@ -64,6 +64,7 @@ type ScheduleDTO struct {
 	StartDate  *time.Time
 	EndDate    *time.Time
 	Items      []ScheduleItemDTO
+	Practices  []schedules.Practice
 }
 
 type CreateScheduleInput struct {
@@ -326,7 +327,70 @@ func (uc *ScheduleUsecase) AddItemsToSchedule(ctx context.Context, scheduleID uu
 		}
 	}
 
-	err = uc.repo.SaveSchedule(ctx, schedule)
+	err = repo.SaveSchedule(ctx, schedule)
+	if err != nil {
+		logger.Error("Save schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		logger.Error("Save updated schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+type AddPracticeToScheduleInput struct {
+	PracticeType int8
+	StartDate    time.Time
+	EndDate      time.Time
+}
+
+// AddPracticeToSchedule
+func (uc *ScheduleUsecase) AddPracticesToSchedule(ctx context.Context, scheduleID uuid.UUID, input []AddPracticeToScheduleInput, user *users.User) error {
+	logger := uc.logger.With("schedule_id", scheduleID)
+
+	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
+	if err != nil {
+		logger.Error("Start transaction error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+	defer rollback(ctx)
+
+	repo := tx.(ScheduleUsecaseRepo)
+
+	schedule, err := repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
+	}
+
+	if schedule.Type != schedules.ScheduleTypeCycled {
+		logger.Error("Schedule is not cycled")
+		return execerror.NewExecError(execerror.TypeUnimpemented, errors.New("practice can not be added to calendart schedule"))
+	}
+
+	for i, practice := range input {
+		err = schedule.Cycled.AddPractice(
+			practice.PracticeType,
+			practice.StartDate,
+			practice.EndDate,
+		)
+		if err != nil {
+			return execerror.NewExecError(execerror.TypeInvalidInput, err).AddDetails("input_idx", strconv.FormatInt(int64(i), 10))
+		}
+	}
+
+	err = repo.SaveSchedule(ctx, schedule)
 	if err != nil {
 		logger.Error("Save schedule error", "error", err)
 		return execerror.NewExecError(execerror.TypeInternal, nil)
@@ -547,6 +611,70 @@ func (uc *ScheduleUsecase) RemoveItemsFromSchedule(ctx context.Context, schedule
 				logger.Error("Remove item error", "error", err)
 				return execerror.NewExecError(execerror.TypeInvalidInput, err)
 			}
+		}
+	}
+
+	err = repo.SaveSchedule(ctx, schedule)
+	if err != nil {
+		logger.Error("Save schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		logger.Error("Save updated schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	return nil
+}
+
+type RemovePracticeFromSchedule struct {
+	PracticeType int8
+	StartDate    time.Time
+	EndDate      time.Time
+}
+
+// RemovePracticeFromSchedule
+func (uc *ScheduleUsecase) RemovePracticesFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []RemovePracticeFromSchedule, user *users.User) error {
+	logger := uc.logger.With("schedule_id", scheduleID)
+
+	tx, rollback, commit, err := uc.repo.AsTransaction(ctx, db.IsoLevelDefault)
+	if err != nil {
+		logger.Error("Start transaction error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+	defer rollback(ctx)
+
+	repo := tx.(ScheduleUsecaseRepo)
+
+	schedule, err := repo.GetSchedule(ctx, scheduleID)
+	if err != nil {
+		logger.Error("Get schedule error", "error", err)
+		if errors.Is(err, db.ErrorNotFound) {
+			return execerror.NewExecError(execerror.TypeInvalidInput, errors.New("schedule not found"))
+		}
+
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	}
+
+	if ok, err := uc.authSvc.HaveAccessToSchedule(ctx, schedule, user); err != nil {
+		logger.Error("Check access to schedule error", "error", err)
+		return execerror.NewExecError(execerror.TypeInternal, nil)
+	} else if !ok {
+		return execerror.NewExecError(execerror.TypeForbbiden, errors.New("user does not have access to schedule"))
+	}
+
+	if schedule.Type != schedules.ScheduleTypeCycled {
+		logger.Error("Schedule is not cycled")
+		return execerror.NewExecError(execerror.TypeUnimpemented, errors.New("practice can not be added to calendart schedule"))
+	}
+
+	for _, practice := range input {
+		err := schedule.Cycled.RemovePractice(practice.PracticeType, practice.StartDate, practice.EndDate)
+		if err != nil {
+			logger.Error("Remove practice error", "error", err)
+			return execerror.NewExecError(execerror.TypeInvalidInput, err)
 		}
 	}
 
@@ -793,6 +921,7 @@ func (uc *ScheduleUsecase) DeleteSchedule(ctx context.Context, scheduleID uuid.U
 
 func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, teachersMap map[uuid.UUID]teachers.Teacher, withItems bool) (ScheduleDTO, error) {
 	var items []ScheduleItemDTO
+	var practices []schedules.Practice
 
 	if withItems {
 		for _, item := range schedule.Cycled.ListItem() {
@@ -806,6 +935,8 @@ func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, teachersMap map[u
 				TeacherName:  t.Name,
 			})
 		}
+
+		practices = schedule.Practices()
 	}
 
 	dto := ScheduleDTO{
@@ -813,6 +944,7 @@ func scheduleToCycledScheduleDTO(schedule *schedules.Schedule, teachersMap map[u
 		Semester:   schedule.Semester,
 		EduGroupID: schedule.EduGroupID,
 		Items:      items,
+		Practices:  practices,
 	}
 
 	if schedule.Type == schedules.ScheduleTypeCycled {

@@ -94,6 +94,7 @@ func (m *Migrator) Migrate(ctx context.Context, migrationVersion int) error {
 		&EduPlan{},
 		&Schedule{},
 		&ScheduleItem{},
+		&Practice{},
 		&Cabinet{},
 	)
 

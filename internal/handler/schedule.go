@@ -23,8 +23,10 @@ type ScheduleUsecase interface {
 	ListSchedule(ctx context.Context, user *users.User) (usecases.ListScheduleOutput, error)
 	GetSchedule(ctx context.Context, scheduleID uuid.UUID, user *users.User) (*usecases.GetScheduleOutput, error)
 	AddItemsToSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.AddItemToScheduleInput, user *users.User) error
+	AddPracticesToSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.AddPracticeToScheduleInput, user *users.User) error
 	UpdateItemInSchedule(ctx context.Context, scheduleID uuid.UUID, input usecases.AddItemToScheduleInput, user *users.User) error
 	RemoveItemsFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.RemoveItemFromScheduleInput, user *users.User) error
+	RemovePracticesFromSchedule(ctx context.Context, scheduleID uuid.UUID, input []usecases.RemovePracticeFromSchedule, user *users.User) error
 	ExportSchedule(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error
 	ExportCycledScheduleAsCalendar(ctx context.Context, scheduleID uuid.UUID, format string, dst io.Writer, user *users.User) error
 	UpdateSchedule(ctx context.Context, input usecases.UpdateScheduleInput, user *users.User) (*usecases.UpdateScheduleOutput, error)
@@ -47,15 +49,22 @@ type ScheduleItem struct {
 	CabinetBuilding   string     `json:"cabinet_building"`
 }
 
+type SchedulePractice struct {
+	PracticeType int8   `json:"practice_type"`
+	StartDate    string `json:"start_date"`
+	EndDate      string `json:"end_date"`
+}
+
 type Schedule struct {
-	ID             uuid.UUID      `json:"id"`
-	EduGroupID     uuid.UUID      `json:"edu_group_id"`
-	EduGroupNumber string         `json:"edu_group_number"`
-	Semester       int            `json:"semester"`
-	Type           string         `json:"type"`
-	StartDate      *string        `json:"start_date"`
-	EndDate        *string        `json:"end_date"`
-	Items          []ScheduleItem `json:"items"`
+	ID             uuid.UUID          `json:"id"`
+	EduGroupID     uuid.UUID          `json:"edu_group_id"`
+	EduGroupNumber string             `json:"edu_group_number"`
+	Semester       int                `json:"semester"`
+	Type           string             `json:"type"`
+	StartDate      *string            `json:"start_date"`
+	EndDate        *string            `json:"end_date"`
+	Items          []ScheduleItem     `json:"items"`
+	Practices      []SchedulePractice `json:"practices,omitempty"`
 }
 
 type CreateScheduleRequest struct {
@@ -216,6 +225,61 @@ func (h *Handler) AddScheduleItem(c echo.Context) error {
 	return WrapResponse(http.StatusOK, nil).Send(c)
 }
 
+type AddSchedulePracticeRequest struct {
+	PracticeType int8   `json:"practice_type"`
+	StartDate    string `json:"start_date"`
+	EndDate      string `json:"end_date"`
+}
+
+// AddSchedulePractice - POST /v1/schedules/:id/practices
+func (h *Handler) AddSchedulePractices(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	var rq []AddSchedulePracticeRequest
+	if err := c.Bind(&rq); err != nil {
+		h.logger.Error("Parse request error", "error", err)
+		return ErrNotParsable
+	}
+
+	scheduleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return ErrInvalidInput
+	}
+
+	input := make([]usecases.AddPracticeToScheduleInput, len(rq))
+
+	for i, practice := range rq {
+		startDate, err := time.ParseInLocation(time.DateOnly, practice.StartDate, common.DefaultTimezone)
+		if err != nil {
+			return ErrNotParsable
+		}
+
+		endDate, err := time.ParseInLocation(time.DateOnly, practice.EndDate, common.DefaultTimezone)
+		if err != nil {
+			return ErrNotParsable
+		}
+
+		input[i] = usecases.AddPracticeToScheduleInput{
+			StartDate:    startDate,
+			EndDate:      endDate,
+			PracticeType: practice.PracticeType,
+		}
+	}
+
+	err = h.schedule.AddPracticesToSchedule(ctx, scheduleID, input, user)
+	if err != nil {
+		h.logger.Error("Add practice to schedule error", "error", err)
+		return err
+	}
+
+	return WrapResponse(http.StatusOK, nil).Send(c)
+}
+
 // UpdateScheduleItem - PUT /v1/schedules/:id/items
 func (h *Handler) UpdateScheduleItem(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -296,6 +360,61 @@ func (h *Handler) RemoveScheduleItem(c echo.Context) error {
 	}
 
 	err = h.schedule.RemoveItemsFromSchedule(ctx, scheduleID, input, user)
+	if err != nil {
+		h.logger.Error("Remove items from schedule error", "error", err)
+		return err
+	}
+
+	return WrapResponse(http.StatusOK, nil).Send(c)
+}
+
+type RemoveSchedulePracticeRequest struct {
+	PracticeType int8   `json:"practice_type"`
+	StartDate    string `json:"start_date"`
+	EndDate      string `json:"end_date"`
+}
+
+// RemoveSchedulePracticeItem - DELETE /v1/schedules/:id/practices
+func (h *Handler) RemoveSchedulePractice(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	user, err := ExtractUserFromClaims(c)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	var rq []RemoveSchedulePracticeRequest
+	if err := c.Bind(&rq); err != nil {
+		h.logger.Error("Parse request error", "error", err)
+		return ErrNotParsable
+	}
+
+	scheduleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return ErrInvalidInput
+	}
+
+	input := make([]usecases.RemovePracticeFromSchedule, len(rq))
+
+	for i, practice := range rq {
+		startDate, err := time.ParseInLocation(time.DateOnly, practice.StartDate, common.DefaultTimezone)
+		if err != nil {
+			return ErrNotParsable
+		}
+
+		endDate, err := time.ParseInLocation(time.DateOnly, practice.EndDate, common.DefaultTimezone)
+		if err != nil {
+			return ErrNotParsable
+		}
+
+		input[i] = usecases.RemovePracticeFromSchedule{
+			PracticeType: practice.PracticeType,
+			StartDate:    startDate,
+			EndDate:      endDate,
+		}
+	}
+
+	err = h.schedule.RemovePracticesFromSchedule(ctx, scheduleID, input, user)
 	if err != nil {
 		h.logger.Error("Remove items from schedule error", "error", err)
 		return err
@@ -468,6 +587,22 @@ func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule
 		}
 	}
 
+	var practices []SchedulePractice
+	if len(dto.Practices) > 0 {
+		practices = make([]SchedulePractice, 0, len(dto.Practices))
+
+		for _, p := range dto.Practices {
+			startDate := p.StartDate.In(common.DefaultTimezone).Format(time.DateOnly)
+			endDate := p.EndDate.In(common.DefaultTimezone).Format(time.DateOnly)
+
+			practices = append(practices, SchedulePractice{
+				PracticeType: int8(p.Type),
+				StartDate:    startDate,
+				EndDate:      endDate,
+			})
+		}
+	}
+
 	var startDate, endDate *string
 	if dto.StartDate != nil {
 		d := dto.StartDate.In(common.DefaultTimezone).Format(time.DateOnly)
@@ -488,5 +623,6 @@ func scheduleDTOtoView(dto usecases.ScheduleDTO, eduGroupNumber string) Schedule
 		StartDate:      startDate,
 		EndDate:        endDate,
 		Items:          items,
+		Practices:      practices,
 	}
 }

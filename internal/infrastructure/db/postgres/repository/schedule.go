@@ -17,12 +17,25 @@ import (
 func (r *Repository) SaveSchedule(ctx context.Context, d *schedules.Schedule) error {
 	s := schema.ScheduleToSchema(d)
 
-	err := r.client.WithContext(ctx).Delete(&schema.ScheduleItem{}, "schedule_id = ?", s.ID).Error
-	if err != nil {
-		return err
-	}
+	err := r.client.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Delete(&schema.ScheduleItem{}, "schedule_id = ?", s.ID).Error
+		if err != nil {
+			return err
+		}
 
-	err = r.client.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).Save(s).Error
+		err = tx.Delete(&schema.Practice{}, "schedule_id = ?", s.ID).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.Session(&gorm.Session{FullSaveAssociations: true}).Save(s).Error
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return db.ErrorUniqueViolation
@@ -48,7 +61,7 @@ func (r *Repository) GetSchedule(ctx context.Context, id uuid.UUID) (*schedules.
 			schedule_items.date NULLS LAST,
 			schedule_items.weektype NULLS LAST
 		`)
-	}).Where("id = ?", id.String()).First(&s).Error
+	}).Preload("Practices").Where("id = ?", id.String()).First(&s).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
@@ -85,7 +98,7 @@ func (r *Repository) GetScheduleByEduGroupIDAndSemester(ctx context.Context, edu
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Where("edu_group_id = ? AND semester = ?", eduGroupID.String(), semester).First(&s).Error
+	}).Preload("Practices").Where("edu_group_id = ? AND semester = ?", eduGroupID.String(), semester).First(&s).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
@@ -107,7 +120,7 @@ func (r *Repository) ListSchedule(ctx context.Context) ([]schedules.Schedule, er
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Order("edu_group_id ASC, semester DESC").Find(&list).Error
+	}).Preload("Practices").Order("edu_group_id ASC, semester DESC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
@@ -134,7 +147,7 @@ func (r *Repository) ListScheduleByFaculty(ctx context.Context, facultyID uuid.U
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Joins("EduGroup.EduPlan.Direction.Department").Where(`"EduGroup__EduPlan__Direction__Department".faculty_id = ?`, facultyID).Order("edu_group_id ASC, semester DESC").Find(&list).Error
+	}).Preload("Practices").Joins("EduGroup.EduPlan.Direction.Department").Where(`"EduGroup__EduPlan__Direction__Department".faculty_id = ?`, facultyID).Order("edu_group_id ASC, semester DESC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
@@ -161,7 +174,7 @@ func (r *Repository) ListScheduleByEduGroup(ctx context.Context, groupID uuid.UU
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Where("edu_group_id = ?", groupID).Order("semester DESC").Find(&list).Error
+	}).Preload("Practices").Where("edu_group_id = ?", groupID).Order("semester DESC").Find(&list).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound

@@ -1,11 +1,20 @@
 package schema
 
 import (
+	"schedule-generator/internal/common"
 	"schedule-generator/internal/domain/schedules"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type Practice struct {
+	ID         int64     `gorm:"column:id;autoIncrement;primaryKey"`
+	ScheduleID uuid.UUID `gorm:"column:schedule_id;type:string;not null;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Type       int8      `gorm:"column:type;not null"`
+	StartDate  time.Time `gorm:"column:start_date;not null"`
+	EndDate    time.Time `gorm:"column:end_date;not null"`
+}
 
 type ScheduleItem struct {
 	ID                int64        `gorm:"column:id;autoIncrement;primaryKey"`
@@ -36,12 +45,14 @@ type Schedule struct {
 	StartDate *time.Time `gorm:"column:start_date"`
 	EndDate   *time.Time `gorm:"column:end_date"`
 
-	Items []ScheduleItem `gorm:"foreignKey:schedule_id"`
+	Items     []ScheduleItem `gorm:"foreignKey:schedule_id"`
+	Practices []Practice     `gorm:"foreignKey:schedule_id"`
 }
 
 // ScheduleToSchema
 func ScheduleToSchema(model *schedules.Schedule) *Schedule {
 	items := model.ListItem()
+	practices := model.Practices()
 
 	schema := Schedule{
 		ID:         model.ID,
@@ -49,6 +60,7 @@ func ScheduleToSchema(model *schedules.Schedule) *Schedule {
 		Semester:   model.Semester,
 		Type:       int8(model.Type),
 		Items:      make([]ScheduleItem, len(items)),
+		Practices:  make([]Practice, len(practices)),
 	}
 
 	if model.Type == schedules.ScheduleTypeCycled {
@@ -80,6 +92,17 @@ func ScheduleToSchema(model *schedules.Schedule) *Schedule {
 		schema.Items[i] = si
 	}
 
+	for i, practice := range practices {
+		p := Practice{
+			ScheduleID: model.ID,
+			Type:       int8(practice.Type),
+			StartDate:  practice.StartDate,
+			EndDate:    practice.EndDate,
+		}
+
+		schema.Practices[i] = p
+	}
+
 	return &schema
 }
 
@@ -98,10 +121,13 @@ func ScheduleFromSchema(schema *Schedule) *schedules.Schedule {
 			return &model
 		}
 
+		startDate := schema.StartDate.In(common.DefaultTimezone)
+		endDate := schema.EndDate.In(common.DefaultTimezone)
 		model.Cycled = &schedules.CycledSchedule{
-			StartDate: *schema.StartDate,
-			EndDate:   *schema.EndDate,
+			StartDate: startDate,
+			EndDate:   endDate,
 			Items:     make(map[time.Weekday][]schedules.ScheduleItem),
+			Practices: make([]schedules.Practice, 0, len(schema.Practices)),
 		}
 
 		for _, item := range schema.Items {
@@ -124,6 +150,14 @@ func ScheduleFromSchema(schema *Schedule) *schedules.Schedule {
 				},
 			)
 
+			if err != nil {
+				// ignore invalid data from db
+				continue
+			}
+		}
+
+		for _, practice := range schema.Practices {
+			err := model.Cycled.AddPractice(practice.Type, practice.StartDate.In(common.DefaultTimezone), practice.EndDate.In(common.DefaultTimezone))
 			if err != nil {
 				// ignore invalid data from db
 				continue

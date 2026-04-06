@@ -21,6 +21,10 @@ func (s *ScheduleService) ListScheduleItemByDate(schedule *CycledSchedule, educa
 		return nil, errors.New("invalid date")
 	}
 
+	if schedule.isPracticeDate(date) {
+		return nil, nil
+	}
+
 	days := int(date.Truncate(24*time.Hour).
 		Sub(educationStartDate.Truncate(24*time.Hour)).
 		Hours() / 24)

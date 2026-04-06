@@ -70,16 +70,16 @@ func (exp *csvExporter) Export(ctx context.Context, schedule *schedules.Schedule
 	case schedules.ScheduleTypeCycled:
 		header = cycledCsvHeader
 		handler = exp.cycledScheduleItemHandler
-		listItems = schedule.Cycled.ListItem()
 
 	case schedules.ScheduleTypeCalendar:
 		header = calendarCsvHeader
 		handler = exp.calendarScheduleItemHandler
-		listItems = schedule.Calendar.ListItem()
 
 	default:
 		return errors.New("unsupported schedule type")
 	}
+
+	listItems = schedule.ListItem()
 
 	logger := exp.logger.With("schedule_id", schedule.ID)
 

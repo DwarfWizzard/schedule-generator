@@ -4,15 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+const (
+	MaxPracticeNum = 3
+)
+
 var (
-	ErrInvalidData  = errors.New("invalid data")
-	ErrItemNotFound = errors.New("item not found")
-	ErrItemConflict = errors.New("item conflict")
+	ErrInvalidData      = errors.New("invalid data")
+	ErrItemNotFound     = errors.New("item not found")
+	ErrPracticeNotFound = errors.New("practice not found")
+	ErrItemConflict     = errors.New("item conflict")
 )
 
 type ScheduleType int8
@@ -50,6 +56,36 @@ func (s *Schedule) ListItem() []ScheduleItem {
 		return s.Cycled.ListItem()
 	case ScheduleTypeCalendar:
 		return s.Calendar.ListItem()
+	}
+
+	return nil
+}
+
+func (s *Schedule) Practices() []Practice {
+	if s == nil {
+		return nil
+	}
+
+	switch s.Type {
+	case ScheduleTypeCycled:
+		sort.Slice(s.Cycled.Practices, func(i, j int) bool {
+			a := s.Cycled.Practices[i]
+			b := s.Cycled.Practices[j]
+
+			if a.Type != b.Type {
+				return a.Type < b.Type
+			}
+
+			if !a.StartDate.Equal(b.StartDate) {
+				return a.StartDate.Before(b.StartDate)
+			}
+
+			return a.EndDate.Before(b.EndDate)
+		})
+
+		return s.Cycled.Practices
+	case ScheduleTypeCalendar:
+		return nil
 	}
 
 	return nil
@@ -97,6 +133,7 @@ func (s *Schedule) validateSemester(admissionYear, currentYear int) error {
 type CycledSchedule struct {
 	StartDate time.Time
 	EndDate   time.Time
+	Practices []Practice
 	Items     map[time.Weekday][]ScheduleItem
 }
 
@@ -220,6 +257,26 @@ func (s *CycledSchedule) AddItem(
 	return nil
 }
 
+// AddPractice
+func (s *CycledSchedule) AddPractice(practiceType int8, startDate, endDate time.Time) error {
+	if len(s.Practices) >= MaxPracticeNum {
+		return fmt.Errorf("max number of practice is %d", MaxPracticeNum)
+	}
+
+	t, err := NewPracticeType(practiceType)
+	if err != nil {
+		return err
+	}
+
+	s.Practices = append(s.Practices, Practice{
+		Type:      t,
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+
+	return nil
+}
+
 // RemoveItem
 func (s *CycledSchedule) RemoveItem(weekday time.Weekday, lessonNumber, subgroup, weektype int8) error {
 	var argErr error
@@ -254,6 +311,26 @@ func (s *CycledSchedule) RemoveItem(weekday time.Weekday, lessonNumber, subgroup
 	return nil
 }
 
+// RemoveItem
+func (s *CycledSchedule) RemovePractice(practiceType int8, startDate time.Time, endDate time.Time) error {
+	t, err := NewPracticeType(practiceType)
+	if err != nil {
+		return err
+	}
+
+	idx := slices.IndexFunc(s.Practices, func(practice Practice) bool {
+		return practice.Type == t && practice.StartDate.Equal(startDate) && practice.EndDate.Equal(endDate)
+	})
+
+	if idx < 0 {
+		return ErrPracticeNotFound
+	}
+
+	s.Practices = append(s.Practices[:idx], s.Practices[idx+1:]...)
+
+	return nil
+}
+
 func (s *CycledSchedule) validateItem(item *ScheduleItem) error {
 	items := s.Items[item.Weekday]
 	if len(items) == 0 {
@@ -282,6 +359,17 @@ func (s *CycledSchedule) validateItem(item *ScheduleItem) error {
 	return nil
 }
 
+func (s *CycledSchedule) isPracticeDate(date time.Time) bool {
+	for _, practice := range s.Practices {
+		if (practice.StartDate.Equal(date) || practice.StartDate.Before(date)) &&
+			(practice.EndDate.Equal(date) || practice.EndDate.After(date)) {
+			return true
+		}
+	}
+
+	return false
+}
+
 type CalendarSchedule struct {
 	Items []ScheduleItem
 }
@@ -298,7 +386,7 @@ func CalendarScheduleFromCycled(eduGroupID uuid.UUID, semester int, cycled *Cycl
 
 	var items []ScheduleItem
 	for d := cycled.StartDate; !d.After(cycled.EndDate); d = d.AddDate(0, 0, 1) {
-		if d.Weekday() == time.Sunday {
+		if d.Weekday() == time.Sunday || cycled.isPracticeDate(d) {
 			continue
 		}
 
