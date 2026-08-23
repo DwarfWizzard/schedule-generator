@@ -91,13 +91,13 @@ func (s *Schedule) Practices() []Practice {
 	return nil
 }
 
-func (s *Schedule) Validate(admissionYear, currentYear int) error {
-	if err := s.validateSemester(admissionYear, currentYear); err != nil {
-		return err
-	}
-
+func (s *Schedule) Validate(admissionYear int) error {
 	switch s.Type {
 	case ScheduleTypeCycled:
+		if err := s.validateSemester(admissionYear, s.Cycled.EndDate.Year()); err != nil {
+			return err
+		}
+
 		return s.Cycled.Validate()
 	case ScheduleTypeCalendar:
 		return s.Calendar.Validate()
@@ -138,7 +138,7 @@ type CycledSchedule struct {
 }
 
 // NewCycledSchedule
-func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate time.Time, admissionYear, currentYear int) (*Schedule, error) {
+func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate time.Time, admissionYear int) (*Schedule, error) {
 	id := uuid.New()
 
 	schedule := Schedule{
@@ -153,7 +153,7 @@ func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate ti
 		},
 	}
 
-	if err := schedule.validateSemester(admissionYear, currentYear); err != nil {
+	if err := schedule.validateSemester(admissionYear, endDate.Year()); err != nil {
 		return nil, err
 	}
 

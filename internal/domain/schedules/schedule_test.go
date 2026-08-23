@@ -10,7 +10,7 @@ import (
 
 func TestCycledSchedule_NewCycledSchedule(t *testing.T) {
 	t.Run("happy-path", func(t *testing.T) {
-		schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now().AddDate(0, 0, 1), time.Now().Year(), time.Now().Year())
+		schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now().AddDate(0, 0, 1), time.Now().Year())
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -45,7 +45,7 @@ func TestCycledSchedule_NewCycledSchedule(t *testing.T) {
 
 		for n, c := range cases {
 			t.Run(n, func(t *testing.T) {
-				_, err := NewCycledSchedule(groupID, c.semester, c.startDate, c.endDate, time.Now().Year(), time.Now().Year())
+				_, err := NewCycledSchedule(groupID, c.semester, c.startDate, c.endDate, time.Now().Year())
 				if err == nil {
 					t.Error("unexpected nil value")
 				}
@@ -203,7 +203,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 
 		for name, suitcase := range suitcases {
 			t.Run(name, func(t *testing.T) {
-				schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now(), time.Now().Year(), time.Now().Year())
+				schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now(), time.Now().Year())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -481,7 +481,7 @@ func TestCycledSchedule_AddItem(t *testing.T) {
 
 		for name, suitcase := range suitcases {
 			t.Run(name, func(t *testing.T) {
-				schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now().AddDate(0, 0, 1), time.Now().Year(), time.Now().Year())
+				schedule, err := NewCycledSchedule(uuid.New(), 1, time.Now(), time.Now().AddDate(0, 0, 1), time.Now().Year())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -541,7 +541,7 @@ func TestScheduleValidate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := NewCycledSchedule(uuid.New(), test.semester, time.Now(), time.Now().AddDate(0, 0, 1), test.admissionYear, now.Year())
+			_, err := NewCycledSchedule(uuid.New(), test.semester, time.Now(), now, test.admissionYear)
 			if err != nil {
 				if !test.wantErr {
 					t.Errorf("unexpected error %s", err)
