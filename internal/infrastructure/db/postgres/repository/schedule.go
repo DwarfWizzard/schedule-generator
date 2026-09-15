@@ -140,6 +140,7 @@ func (r *Repository) ListSchedule(ctx context.Context) ([]schedules.Schedule, er
 // ListSchedule
 func (r *Repository) ListScheduleByFaculty(ctx context.Context, facultyID uuid.UUID) ([]schedules.Schedule, error) {
 	var list []schema.Schedule
+
 	err := r.client.WithContext(ctx).Preload("Items", func(db *gorm.DB) *gorm.DB {
 		return db.Order(`
 			schedule_items.date NULLS LAST,
@@ -147,7 +148,15 @@ func (r *Repository) ListScheduleByFaculty(ctx context.Context, facultyID uuid.U
 			schedule_items.lesson_number,
 			schedule_items.subgroup
 		`)
-	}).Preload("Practices").Joins("EduGroup.EduPlan.Direction.Department").Where(`"EduGroup__EduPlan__Direction__Department".faculty_id = ?`, facultyID).Order("edu_group_id ASC, semester DESC").Find(&list).Error
+	}).Preload("Practices").
+		Joins("JOIN edu_groups ON edu_groups.id = schedules.edu_group_id").
+		Joins("JOIN edu_plans ON edu_plans.id = edu_groups.edu_plan_id").
+		Joins("JOIN edu_directions ON edu_directions.id = edu_plans.direction_id").
+		Joins("JOIN departments ON departments.id = edu_plans.department_id").
+		Where("departments.faculty_id = ?", facultyID).
+		Order("edu_groups.number DESC, schedules.semester DESC").
+		Find(&list).Error
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, db.ErrorNotFound
