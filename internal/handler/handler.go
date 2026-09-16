@@ -164,7 +164,7 @@ func (h *Handler) InitRouter() *echo.Echo {
 		cabinets.PUT("/:id", h.UpdateCabinet)
 		cabinets.DELETE("/:id", h.DeleteCabinet)
 	}
-	// cabinets.GET("/workload", h.GetCabinetWorkload)
+	cabinets.GET("/workload", h.GetCabinetWorkload)
 
 	return router
 }

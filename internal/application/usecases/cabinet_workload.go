@@ -6,6 +6,7 @@ import (
 	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/common"
 	"schedule-generator/internal/domain/schedules"
+	"schedule-generator/internal/domain/users"
 	"schedule-generator/internal/infrastructure/db/postgres/repository"
 	"schedule-generator/pkg/execerror"
 	"time"
@@ -76,12 +77,11 @@ func NewCabinetWorkloadUsecase(
 	return cabWorkloadUsecase
 }
 
-// версия с проверкой пользователя// func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *users.User) (CabinetWorkloadOutput, error) {
-// версия с отдачей просто мапы // func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context) (CabinetWorkloadOutput, error) {
-func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context) (*CabinetWorkloadOutput, error) {
-	// if user == nil {
-	// 	return nil, execerror.NewExecError(execerror.TypeForbbiden, nil)
-	// }
+// GetCabinetWorkload
+func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *users.User) (*CabinetWorkloadOutput, error) {
+	if user == nil {
+		return nil, execerror.NewExecError(execerror.TypeForbbiden, nil)
+	}
 
 	items, err := uc.repo.ListCycledCabinetWorkload(ctx)
 	if err != nil {
