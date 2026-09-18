@@ -109,7 +109,7 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 	}
 
 	var result CabinetWorkloadOutput = CabinetWorkloadOutput{
-		AcademicYearStart:          time.Now().Format("2026-12-25"),
+		AcademicYearStart:          time.Now().Format("2006-01-02"),
 		MaxPairsPerDay:             "7",
 		CabinetWorkloadFinalOutput: make(map[string]CabinetWorkloadBuilding),
 	}
