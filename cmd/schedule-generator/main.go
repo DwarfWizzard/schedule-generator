@@ -87,6 +87,7 @@ func main() {
 		usecases.NewScheduleUsecase(authSvc, repo, exp, logger),
 		usecases.NewTeacherUsecase(authSvc, repo, logger),
 		usecases.NewCabinetUsecase(authSvc, repo, logger),
+		usecases.NewCabinetWorkloadUsecase(authSvc, repo, logger),
 		usecases.NewUserUsecase(authSvc, pwdSvc, tokenSvc, repo, logger),
 		logger,
 	)
