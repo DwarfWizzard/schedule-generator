@@ -68,7 +68,6 @@ type Schedule struct {
 }
 
 type CreateScheduleRequest struct {
-	//TODO: add calendar
 	EduGroupID uuid.UUID `json:"edu_group_id"`
 	Semester   int       `json:"semester"`
 	StartDate  string    `json:"start_date"`

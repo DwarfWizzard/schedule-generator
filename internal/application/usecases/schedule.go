@@ -113,7 +113,7 @@ func (uc *ScheduleUsecase) CreateSchedule(ctx context.Context, input CreateSched
 		return nil, execerror.NewExecError(execerror.TypeUnimpemented, errors.New("calendar schedule not implemented"))
 	}
 
-	schedule, err := schedules.NewCycledSchedule(input.EduGroupID, input.Semester, *input.StartDate, *input.EndDate, int(group.AdmissionYear), time.Now().Year())
+	schedule, err := schedules.NewCycledSchedule(input.EduGroupID, input.Semester, *input.StartDate, *input.EndDate, int(group.AdmissionYear))
 	if err != nil {
 		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
 	}
@@ -750,7 +750,7 @@ func (uc *ScheduleUsecase) UpdateSchedule(ctx context.Context, input UpdateSched
 		schedule.Cycled.EndDate = *input.EndDate
 	}
 
-	err = schedule.Validate(int(group.AdmissionYear), time.Now().Year())
+	err = schedule.Validate(int(group.AdmissionYear))
 	if err != nil {
 		return nil, execerror.NewExecError(execerror.TypeInvalidInput, err)
 	}

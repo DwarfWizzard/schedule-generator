@@ -91,13 +91,13 @@ func (s *Schedule) Practices() []Practice {
 	return nil
 }
 
-func (s *Schedule) Validate(admissionYear, currentYear int) error {
-	if err := s.validateSemester(admissionYear, currentYear); err != nil {
-		return err
-	}
-
+func (s *Schedule) Validate(admissionYear int) error {
 	switch s.Type {
 	case ScheduleTypeCycled:
+		if err := s.validateSemester(admissionYear, s.Cycled.EndDate); err != nil {
+			return err
+		}
+
 		return s.Cycled.Validate()
 	case ScheduleTypeCalendar:
 		return s.Calendar.Validate()
@@ -106,28 +106,42 @@ func (s *Schedule) Validate(admissionYear, currentYear int) error {
 	return fmt.Errorf("unknown schedule")
 }
 
-func (s *Schedule) validateSemester(admissionYear, currentYear int) error {
+func (s *Schedule) validateSemester(admissionYear int, currentDate time.Time) error {
 	if s.Semester < 0 {
 		return errors.Join(ErrInvalidData, errors.New("invalid semester value"))
 	}
 
-	allowedSemesters := [2]int{1, 2}
-	diff := currentYear - int(admissionYear)
-	if diff < 0 {
+	if currentDate.Year() < admissionYear {
 		return errors.Join(ErrInvalidData, fmt.Errorf("admission year %d is in the future", admissionYear))
 	}
 
-	if diff == 0 {
-		allowedSemesters = [2]int{1, 2}
-	} else {
-		allowedSemesters = [2]int{diff*2 - 1, diff * 2}
-	}
+	calculatedSemester := calculateSemester(admissionYear, currentDate)
 
-	if s.Semester != allowedSemesters[0] && s.Semester != allowedSemesters[1] {
-		return errors.Join(ErrInvalidData, fmt.Errorf("for admission year %d current allowed semesters is %d and %d", admissionYear, allowedSemesters[0], allowedSemesters[1]))
+	if s.Semester != calculatedSemester {
+		return errors.Join(ErrInvalidData, fmt.Errorf("for admission year %d current allowed semester is %d (calculated from date %s), got %d", admissionYear, calculatedSemester, currentDate.Format("2004-01-02"), s.Semester))
 	}
 
 	return nil
+}
+
+func calculateSemester(admissionYear int, currentDate time.Time) int {
+
+	currentYear := currentDate.Year()
+	currentMonth := int(currentDate.Month())
+
+	course := currentYear - admissionYear
+	if currentMonth >= 9 {
+		course++
+	}
+
+	semesterOnCourse := 0
+	if currentMonth >= 9 || currentMonth == 1 {
+		semesterOnCourse = 1
+	}
+
+	semester := course*2 - semesterOnCourse
+
+	return semester
 }
 
 type CycledSchedule struct {
@@ -138,7 +152,7 @@ type CycledSchedule struct {
 }
 
 // NewCycledSchedule
-func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate time.Time, admissionYear, currentYear int) (*Schedule, error) {
+func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate time.Time, admissionYear int) (*Schedule, error) {
 	id := uuid.New()
 
 	schedule := Schedule{
@@ -153,7 +167,7 @@ func NewCycledSchedule(eduGroupID uuid.UUID, semester int, startDate, endDate ti
 		},
 	}
 
-	if err := schedule.validateSemester(admissionYear, currentYear); err != nil {
+	if err := schedule.validateSemester(admissionYear, endDate); err != nil {
 		return nil, err
 	}
 
