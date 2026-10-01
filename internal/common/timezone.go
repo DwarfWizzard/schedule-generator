@@ -1,6 +1,8 @@
 package common
 
-import "time"
+import (
+	"time"
+)
 
 var DefaultTimezone *time.Location
 
@@ -11,4 +13,8 @@ func init() {
 	}
 
 	DefaultTimezone = loc
+}
+
+func NormalizeTimezone(date time.Time) string {
+	return date.In(DefaultTimezone).Format(time.DateOnly)
 }

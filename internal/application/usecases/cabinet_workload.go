@@ -5,56 +5,17 @@ import (
 	"log/slog"
 	"schedule-generator/internal/application/services"
 	"schedule-generator/internal/common"
+	cabinetworkload "schedule-generator/internal/domain/cabinet_workload"
 	"schedule-generator/internal/domain/schedules"
 	"schedule-generator/internal/domain/users"
-	"schedule-generator/internal/infrastructure/db/postgres/repository"
 	"schedule-generator/pkg/execerror"
+	"strings"
 	"time"
 )
 
-var weekdaynames = map[time.Weekday]string{
-	time.Monday:    "monday",
-	time.Tuesday:   "tuesday",
-	time.Wednesday: "wednesday",
-	time.Thursday:  "thursday",
-	time.Friday:    "friday",
-	time.Saturday:  "saturday",
-}
-
-type WorkloadPractice struct {
-	PracticeType string `json:"practice_type"`
-	StartDate    string `json:"start_date"`
-	EndDate      string `json:"end_date"`
-	Group        string `json:"group"`
-}
-
-type CabinetWorkloadLesson struct {
-	LessonNumber  int8               `json:"lesson_number"`
-	WeekType      string             `json:"weektype"`
-	Discipline    string             `json:"discipline"`
-	TeacherName   string             `json:"teacher_name"`
-	EduGroup      []string           `json:"edu_group"`
-	StudentsCount int16              `json:"students_count"`
-	LessonType    string             `json:"lesson_type"`
-	Subgroup      int8               `json:"subgroup"`
-	Practices     []WorkloadPractice `json:"practices"`
-}
-
-type CabinetWorkloadDay = map[string][]CabinetWorkloadLesson
-
-type CabinetWorkloadBuilding = map[string]CabinetWorkloadDay
-
-// type CabinetWorkloadOutput = map[string]CabinetWorkloadBuilding
-
-type CabinetWorkloadOutput struct {
-	AcademicYearStart          string                             `json:"academic_year_start"`
-	MaxPairsPerDay             string                             `json:"max_pairs_per_day"`
-	CabinetWorkloadFinalOutput map[string]CabinetWorkloadBuilding `json:"cabinet_workload_final_output"`
-}
-
 type CabinetWorkloadUsecaseRepo interface {
-	ListCycledCabinetWorkload(ctx context.Context) ([]repository.CabinetWorkloadItem, error)
-	ListCycledPractices(ctx context.Context) ([]repository.CabinetWorkloadPractice, error)
+	ListCycledCabinetWorkload(ctx context.Context) ([]cabinetworkload.CabinetWorkloadItem, error)
+	ListCycledPractices(ctx context.Context) ([]cabinetworkload.CabinetWorkloadPractice, error)
 }
 
 type CabinetWorkloadUsecase struct {
@@ -77,6 +38,12 @@ func NewCabinetWorkloadUsecase(
 	return cabWorkloadUsecase
 }
 
+type CabinetWorkloadOutput struct {
+	AcademicYearStart          string
+	MaxPairsPerDay             string
+	CabinetWorkloadFinalOutput map[string]cabinetworkload.CabinetWorkloadBuilding
+}
+
 // GetCabinetWorkload
 func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *users.User) (*CabinetWorkloadOutput, error) {
 	if user == nil {
@@ -95,30 +62,30 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 		return nil, execerror.NewExecError(execerror.TypeInternal, nil)
 	}
 
-	practiceIndex := make(map[string][]WorkloadPractice, len(practiceItems))
+	practiceIndex := make(map[string][]cabinetworkload.WorkloadPractice, len(practiceItems))
 	for _, p := range practiceItems {
 		pracType := schedules.PracticeType(p.PracticeType)
-		practice := WorkloadPractice{
+		practice := cabinetworkload.WorkloadPractice{
 			PracticeType: pracType.String(),
-			StartDate:    p.StartDate.In(common.DefaultTimezone).Format(time.DateOnly),
-			EndDate:      p.EndDate.In(common.DefaultTimezone).Format(time.DateOnly),
+			StartDate:    common.NormalizeTimezone(p.StartDate),
+			EndDate:      common.NormalizeTimezone(p.EndDate),
 			Group:        p.EduGroupNumber,
 		}
 
 		practiceIndex[p.EduGroupNumber] = append(practiceIndex[p.EduGroupNumber], practice)
 	}
 
-	var result CabinetWorkloadOutput = CabinetWorkloadOutput{
+	result := CabinetWorkloadOutput{
 		AcademicYearStart:          time.Now().Format("2006-01-02"),
 		MaxPairsPerDay:             "7",
-		CabinetWorkloadFinalOutput: make(map[string]CabinetWorkloadBuilding),
+		CabinetWorkloadFinalOutput: make(map[string]cabinetworkload.CabinetWorkloadBuilding),
 	}
 
 	var flagOfCopyLesson bool
 	for _, item := range items {
 		flagOfCopyLesson = false
 
-		weektypeStr := "both"
+		weektypeStr := schedules.WeekTypeBoth.String()
 		if item.Weektype != nil {
 			wt := schedules.Weektype(*item.Weektype)
 			weektypeStr = wt.String()
@@ -127,19 +94,19 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 		lessType := schedules.ItemLessonType(item.LessonType)
 		lessonTypeStr := lessType.String()
 
-		dayName, ok := weekdaynames[item.Weekday]
-		if !ok {
+		if item.Weekday == time.Sunday {
 			uc.logger.Warn("Unexpected weekday in workload item", "weekday", item.Weekday)
 			continue
 		}
+		dayName := strings.ToLower(item.Weekday.String())
 
 		groupPractices := practiceIndex[item.EduGroupNumber]
 		if groupPractices == nil {
-			groupPractices = []WorkloadPractice{}
+			groupPractices = []cabinetworkload.WorkloadPractice{}
 		}
 
 		var groups []string = []string{item.EduGroupNumber}
-		lesson := CabinetWorkloadLesson{
+		lesson := cabinetworkload.CabinetWorkloadLesson{
 			LessonNumber:  item.LessonNumber,
 			WeekType:      weektypeStr,
 			Discipline:    item.Discipline,
@@ -155,14 +122,13 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 		auditorium := item.CabinetAuditorium
 
 		if _, exists := result.CabinetWorkloadFinalOutput[building]; !exists {
-			result.CabinetWorkloadFinalOutput[building] = make(CabinetWorkloadBuilding)
+			result.CabinetWorkloadFinalOutput[building] = make(cabinetworkload.CabinetWorkloadBuilding)
 		}
 
 		if _, exists := result.CabinetWorkloadFinalOutput[building][auditorium]; !exists {
-			result.CabinetWorkloadFinalOutput[building][auditorium] = make(CabinetWorkloadDay)
+			result.CabinetWorkloadFinalOutput[building][auditorium] = make(cabinetworkload.CabinetWorkloadDay)
 		}
 
-		// TODO разобраться как помечаются группы/подгруппы, какие "все", какие "п/г-1"
 		for i := 0; i < len(result.CabinetWorkloadFinalOutput[building][auditorium][dayName]); i++ {
 
 			if result.CabinetWorkloadFinalOutput[building][auditorium][dayName][i].LessonNumber == lesson.LessonNumber &&
@@ -172,7 +138,7 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 				result.CabinetWorkloadFinalOutput[building][auditorium][dayName][i].EduGroup[0] != lesson.EduGroup[0] &&
 				result.CabinetWorkloadFinalOutput[building][auditorium][dayName][i].LessonType == lesson.LessonType {
 
-				var v *CabinetWorkloadLesson = &result.CabinetWorkloadFinalOutput[building][auditorium][dayName][i]
+				var v *cabinetworkload.CabinetWorkloadLesson = &result.CabinetWorkloadFinalOutput[building][auditorium][dayName][i]
 				v.EduGroup = append(v.EduGroup, lesson.EduGroup...)
 				v.StudentsCount += lesson.StudentsCount
 				v.Subgroup = 0

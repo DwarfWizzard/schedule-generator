@@ -77,10 +77,9 @@ func (h *Handler) InitRouter() *echo.Echo {
 	}
 
 	api := router.Group("/v1", h.AuthorizationMiddleware())
-	apiUnmiddleware := router.Group("/v1")
-	testCabinets := apiUnmiddleware.Group("/cabinets")
+	cabinetWorkload := api.Group("/cabinets")
 	{
-		testCabinets.GET("/workload", h.GetCabinetWorkload)
+		cabinetWorkload.GET("/workload", h.GetCabinetWorkload)
 	}
 
 	users := api.Group("/users")
@@ -164,7 +163,6 @@ func (h *Handler) InitRouter() *echo.Echo {
 		cabinets.PUT("/:id", h.UpdateCabinet)
 		cabinets.DELETE("/:id", h.DeleteCabinet)
 	}
-	cabinets.GET("/workload", h.GetCabinetWorkload)
 
 	return router
 }

@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	cabinetworkload "schedule-generator/internal/domain/cabinet_workload"
+	"schedule-generator/internal/domain/schedules"
 	"schedule-generator/internal/infrastructure/db/postgres/schema"
 	"time"
 )
@@ -22,8 +24,8 @@ type CabinetWorkloadItem struct {
 	EduGroupNumber string `gorm:"column:edu_group_number"`
 }
 
-func (r *Repository) ListCycledCabinetWorkload(ctx context.Context) ([]CabinetWorkloadItem, error) {
-	var result []CabinetWorkloadItem
+func (r *Repository) ListCycledCabinetWorkload(ctx context.Context) ([]cabinetworkload.CabinetWorkloadItem, error) {
+	var list []schema.CabinetWorkloadItem
 
 	err := r.client.WithContext(ctx).
 		Model(&schema.ScheduleItem{}).
@@ -43,27 +45,25 @@ func (r *Repository) ListCycledCabinetWorkload(ctx context.Context) ([]CabinetWo
 		Joins("JOIN schedules ON schedules.id = schedule_items.schedule_id").
 		Joins("JOIN edu_groups ON edu_groups.id = schedules.edu_group_id").
 		Joins("JOIN teachers ON teachers.id = schedule_items.teacher_id").
-		Where("schedules.type = 1").
+		Where("schedules.type = ?", schedules.ScheduleTypeCycled).
 		Where("schedule_items.weektype IS NOT NULL").
 		Order("schedule_items.cabinet_building, schedule_items.cabinet_auditorium, schedule_items.weekday, schedule_items.lesson_number").
-		Scan(&result).Error
+		Scan(&list).Error
 
 	if err != nil {
 		return nil, err
 	}
 
+	result := make([]cabinetworkload.CabinetWorkloadItem, len(list))
+	for i, schemaWLCabItem := range list {
+		result[i] = *schema.CabinetWorkloadItemFromSchema(&schemaWLCabItem)
+	}
+
 	return result, nil
 }
 
-type CabinetWorkloadPractice struct {
-	PracticeType   int8      `gorm:"column:practice_type"`
-	StartDate      time.Time `gorm:"column:start_date"`
-	EndDate        time.Time `gorm:"column:end_date"`
-	EduGroupNumber string    `gorm:"column:edu_group_number"`
-}
-
-func (r *Repository) ListCycledPractices(ctx context.Context) ([]CabinetWorkloadPractice, error) {
-	var result []CabinetWorkloadPractice
+func (r *Repository) ListCycledPractices(ctx context.Context) ([]cabinetworkload.CabinetWorkloadPractice, error) {
+	var list []schema.CabinetWorkloadPractice
 
 	err := r.client.WithContext(ctx).
 		Model(&schema.Practice{}).
@@ -75,12 +75,18 @@ func (r *Repository) ListCycledPractices(ctx context.Context) ([]CabinetWorkload
 		`).
 		Joins("JOIN schedules ON schedules.id = practices.schedule_id").
 		Joins("JOIN edu_groups ON edu_groups.id = schedules.edu_group_id").
-		Where("schedules.type = 1").
+		// Where("schedules.type = 1").
+		Where("schedules.type = ?", schedules.ScheduleTypeCycled).
 		Order("edu_groups.number, practices.start_date").
-		Scan(&result).Error
+		Scan(&list).Error
 
 	if err != nil {
 		return nil, err
+	}
+
+	result := make([]cabinetworkload.CabinetWorkloadPractice, len(list))
+	for i, schemaWLPract := range list {
+		result[i] = *schema.CabinetWorkloadPracticeFromSchema(&schemaWLPract)
 	}
 
 	return result, err
