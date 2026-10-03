@@ -5,24 +5,7 @@ import (
 	cabinetworkload "schedule-generator/internal/domain/cabinet_workload"
 	"schedule-generator/internal/domain/schedules"
 	"schedule-generator/internal/infrastructure/db/postgres/schema"
-	"time"
 )
-
-type CabinetWorkloadItem struct {
-	Discipline        string       `gorm:"column:discipline"`
-	Weekday           time.Weekday `gorm:"column:weekday"`
-	LessonNumber      int8         `gorm:"column:lesson_number"`
-	Subgroup          int8         `gorm:"column:subgroup"`
-	Weektype          *int8        `gorm:"column:weektype"`
-	LessonType        int8         `gorm:"column:lesson_type"`
-	StudentsCount     int16        `gorm:"column:students_count"`
-	CabinetAuditorium string       `gorm:"column:cabinet_auditorium"`
-	CabinetBuilding   string       `gorm:"column:cabinet_building"`
-
-	TeacherName string `gorm:"column:teacher_name"`
-
-	EduGroupNumber string `gorm:"column:edu_group_number"`
-}
 
 func (r *Repository) ListCycledCabinetWorkload(ctx context.Context) ([]cabinetworkload.CabinetWorkloadItem, error) {
 	var list []schema.CabinetWorkloadItem
@@ -75,7 +58,6 @@ func (r *Repository) ListCycledPractices(ctx context.Context) ([]cabinetworkload
 		`).
 		Joins("JOIN schedules ON schedules.id = practices.schedule_id").
 		Joins("JOIN edu_groups ON edu_groups.id = schedules.edu_group_id").
-		// Where("schedules.type = 1").
 		Where("schedules.type = ?", schedules.ScheduleTypeCycled).
 		Order("edu_groups.number, practices.start_date").
 		Scan(&list).Error

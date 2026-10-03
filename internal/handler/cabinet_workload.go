@@ -55,11 +55,9 @@ func (h *Handler) GetCabinetWorkload(c echo.Context) error {
 		return err
 	}
 
-	// lengthOfWKLFinalOutput := len(out.CabinetWorkloadFinalOutput)
 	result := CabinetWorkloadOutput{
 		AcademicYearStart: out.AcademicYearStart,
 		MaxPairsPerDay:    out.MaxPairsPerDay,
-		// CabinetWorkloadFinalOutput: make(map[string]CabinetWorkloadBuilding, lengthOfWKLFinalOutput),
 	}
 
 	result.CabinetWorkloadFinalOutput = cabinetWorkloadOutputToView(out.CabinetWorkloadFinalOutput)
@@ -85,7 +83,6 @@ func cabinetWorkloadOutputToView(data map[string]cabinetworkload.CabinetWorkload
 			for keyOfDay, lessonSl := range dayMap {
 
 				if _, exists := result[keyOfBuilding][keyOfCabinet][keyOfDay]; !exists {
-					// result[keyOfBuilding][keyOfCabinet][keyOfDay] = make([]CabinetWorkloadLesson, 0, len(lessonSl))
 					result[keyOfBuilding][keyOfCabinet][keyOfDay] = make([]CabinetWorkloadLesson, len(lessonSl))
 
 				}

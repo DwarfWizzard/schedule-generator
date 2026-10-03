@@ -76,7 +76,7 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 	}
 
 	result := CabinetWorkloadOutput{
-		AcademicYearStart:          time.Now().Format("2006-01-02"),
+		AcademicYearStart:          time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02"),
 		MaxPairsPerDay:             "7",
 		CabinetWorkloadFinalOutput: make(map[string]cabinetworkload.CabinetWorkloadBuilding),
 	}
