@@ -10,16 +10,17 @@ import (
 )
 
 type Handler struct {
-	department   DepartmentUsecase
-	eduDirection EduDirectionUsecase
-	eduGroup     EduGroupUsecase
-	eduPlan      EduPlanUsecase
-	faculty      FacultyUsecase
-	schedule     ScheduleUsecase
-	teacher      TeacherUsecase
-	cabinet      CabinetUsecase
-	user         UserUsecase
-	logger       *slog.Logger
+	department      DepartmentUsecase
+	eduDirection    EduDirectionUsecase
+	eduGroup        EduGroupUsecase
+	eduPlan         EduPlanUsecase
+	faculty         FacultyUsecase
+	schedule        ScheduleUsecase
+	teacher         TeacherUsecase
+	cabinet         CabinetUsecase
+	cabinetWorkload CabinetWorkloadUsecase
+	user            UserUsecase
+	logger          *slog.Logger
 }
 
 func NewHandler(
@@ -31,20 +32,22 @@ func NewHandler(
 	schedule ScheduleUsecase,
 	teacher TeacherUsecase,
 	cabinet CabinetUsecase,
+	cabinetWorkload CabinetWorkloadUsecase,
 	user UserUsecase,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
-		department:   department,
-		eduDirection: eduDirection,
-		eduGroup:     eduGroup,
-		eduPlan:      eduPlan,
-		faculty:      faculty,
-		teacher:      teacher,
-		schedule:     schedule,
-		cabinet:      cabinet,
-		user:         user,
-		logger:       logger,
+		department:      department,
+		eduDirection:    eduDirection,
+		eduGroup:        eduGroup,
+		eduPlan:         eduPlan,
+		faculty:         faculty,
+		teacher:         teacher,
+		schedule:        schedule,
+		cabinet:         cabinet,
+		cabinetWorkload: cabinetWorkload,
+		user:            user,
+		logger:          logger,
 	}
 }
 
@@ -74,6 +77,10 @@ func (h *Handler) InitRouter() *echo.Echo {
 	}
 
 	api := router.Group("/v1", h.AuthorizationMiddleware())
+	cabinetWorkload := api.Group("/cabinets")
+	{
+		cabinetWorkload.GET("/workload", h.GetCabinetWorkload)
+	}
 
 	users := api.Group("/users")
 	{
