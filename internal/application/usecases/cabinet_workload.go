@@ -80,7 +80,7 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 	if now.Month() < time.September {
 		year--
 	}
-	academicYearStart := time.Date(year, time.September, 0, 0, 0, 0, 0, time.UTC)
+	academicYearStart := time.Date(year, time.September, 1, 0, 0, 0, 0, common.DefaultTimezone)
 
 	result := CabinetWorkloadOutput{
 		AcademicYearStart:          academicYearStart.Format("2006-01-02"),
