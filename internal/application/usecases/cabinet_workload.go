@@ -75,8 +75,15 @@ func (uc *CabinetWorkloadUsecase) GetCabinetWorkload(ctx context.Context, user *
 		practiceIndex[p.EduGroupNumber] = append(practiceIndex[p.EduGroupNumber], practice)
 	}
 
+	now := time.Now()
+	year := now.Year()
+	if now.Month() < time.September {
+		year--
+	}
+	academicYearStart := time.Date(year, time.September, 0, 0, 0, 0, 0, time.UTC)
+
 	result := CabinetWorkloadOutput{
-		AcademicYearStart:          time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02"),
+		AcademicYearStart:          academicYearStart.Format("2006-01-02"),
 		MaxPairsPerDay:             "7",
 		CabinetWorkloadFinalOutput: make(map[string]cabinetworkload.CabinetWorkloadBuilding),
 	}
